@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Package and Release
+        uses: BigWigsMods/packager@v2
+        # TODO: once the CurseForge project exists, add:
+        #   with:
+        #     args: -p <CF_PROJECT_ID>
+        # (or set "## X-Curse-Project-ID:" in the .toc). Until then the
+        # packager skips the CurseForge upload and only creates a GitHub release.
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,10 @@
+## Interface: 120001, 11507
+## Title: Reverie
+## Notes: Letterbox bars and a title card on flight paths, flying mounts and while AFK.
+## Version: 0.1.0
+## SavedVariables: ReverieDB
+
+Layout.lua
+Overlay.lua
+Core.lua
+Options.lua

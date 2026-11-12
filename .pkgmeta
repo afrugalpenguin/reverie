@@ -1,0 +1,10 @@
+package-as: Reverie
+
+ignore:
+  - README.md
+  - .gitignore
+  - .pkgmeta
+  - .github
+  - tests
+  - media
+  - .luacheckrc
