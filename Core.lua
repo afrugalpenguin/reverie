@@ -30,7 +30,8 @@ function ns.Texts(sample)
   end
 
   return {
-    name = UnitName("player") or "",
+    -- GetUnitName(unit, true) gives the full "First Surname" on Forever.
+    name = Layout.DisplayName(GetUnitName("player", true), nil, ns.settings.options.surname),
     guild = guild and ("<" .. guild .. ">") or (sample and "<Guild>" or ""),
     realm = GetRealmName() or "",
     level = string.format("%s %d %s %s", LEVEL, UnitLevel("player"), UnitRace("player") or "", UnitClass("player") or ""),
@@ -78,12 +79,24 @@ local function CreateLive()
   live = { frame = f, renderer = renderer, fadeAnim = anim }
 end
 
+local function RestoreOwnName()
+  if state.restoreOwnName then
+    SetCVar("UnitNameOwn", "1")
+    state.restoreOwnName = false
+  end
+end
+
 function ns.Start()
   if state.active or InCombatLockdown() then return end
   local o = ns.settings.options
   state.active = true
 
   UIParent:Hide()
+  -- The name above the character isn't part of UIParent, so hide it separately.
+  if GetCVar("UnitNameOwn") == "1" then
+    SetCVar("UnitNameOwn", "0")
+    state.restoreOwnName = true
+  end
   live.frame:SetScale(UIParent:GetScale())
   live.frame:SetPropagateKeyboardInput(true)
   live.fadeAnim:Stop()
@@ -125,6 +138,7 @@ function ns.Stop()
     state.zoomStart = nil
   end
 
+  RestoreOwnName()
   live.frame:Hide()
   if InCombatLockdown() then
     state.showUIAfterCombat = true
@@ -181,8 +195,12 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("PLAYER_LOGOUT")
 events:SetScript("OnEvent", function(self, event, arg1)
-  if event == "ADDON_LOADED" then
+  if event == "PLAYER_LOGOUT" then
+    -- Settings are saved on logout (an AFK timeout logs out with the overlay up).
+    RestoreOwnName()
+  elseif event == "ADDON_LOADED" then
     if arg1 ~= addonName then return end
     ns.settings = Layout.Merge(ReverieDB)
     ReverieDB = ns.settings
