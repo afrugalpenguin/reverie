@@ -1,0 +1,22 @@
+name: Luacheck
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Runs luacheck from its container on ghcr.io, so nothing comes from the Ubuntu
+      # package mirrors. The Lua 5.1 standard is set in .luacheckrc.
+      - name: Run luacheck
+        uses: lunarmodules/luacheck@v1.2.0
+        with:
+          args: .

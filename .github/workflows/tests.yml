@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Lua is built from its GitHub source rather than the Ubuntu package mirrors.
+      # LuaJIT is Lua 5.1 compatible, which is what the game runs.
+      - name: Install Lua
+        uses: luarocks/gh-actions-lua@v14
+        with:
+          luaVersion: "luajit-2.1"
+
+      # Plain Lua runner (no busted); exits non-zero on any failure.
+      - name: Run tests
+        run: lua tests/run.lua
