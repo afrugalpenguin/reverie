@@ -10,7 +10,7 @@ As soon as you land, move or press Escape, your interface comes straight back.
 
 ## Install
 
-Copy this folder into `World of Warcraft/_retail_/Interface/AddOns/Reverie` (or `_classic_era_`). The folder name must be `Reverie`.
+Copy this folder into `World of Warcraft/_forever_/Interface/AddOns/Reverie`. The folder name must be `Reverie`.
 
 ## Use
 
