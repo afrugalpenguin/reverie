@@ -30,7 +30,8 @@ function ns.Texts(sample)
   end
 
   return {
-    name = Layout.DisplayName(UnitName("player"), nil, ns.settings.options.surname),
+    -- GetUnitName(unit, true) gives the full "First Surname" on Forever.
+    name = Layout.DisplayName(GetUnitName("player", true), nil, ns.settings.options.surname),
     guild = guild and ("<" .. guild .. ">") or (sample and "<Guild>" or ""),
     realm = GetRealmName() or "",
     level = string.format("%s %d %s %s", LEVEL, UnitLevel("player"), UnitRace("player") or "", UnitClass("player") or ""),
