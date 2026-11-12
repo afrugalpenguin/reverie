@@ -1,6 +1,12 @@
 # Reverie
 
-A World of Warcraft addon that turns travel and idle time into a film shot. When you take a flight path, fly a mount or go AFK, it hides the UI, adds letterbox bars, and shows a title card with your character name, guild, realm, level and zone.
+Reverie hides your interface while you travel or step away, so you can just enjoy the view.
+
+
+When you hop on a flight path, fly your mount or go AFK, Reverie hides your interface and adds cinema bars to the top and bottom of the screen. A small title card shows your character's name, guild and the zone you're in, and the camera can slowly drift around you while you take in the view.
+
+
+As soon as you land, move or press Escape, your interface comes straight back.
 
 ## Install
 
@@ -21,15 +27,3 @@ In the options window you can:
 - turn on a slow camera orbit and zoom out
 
 Settings are saved per account in `ReverieDB`. The overlay never starts in combat, and it closes if combat begins.
-
-## Develop
-
-```bash
-luacheck .
-```
-
-```bash
-lua tests/run.lua
-```
-
-The tests cover the pure layout logic in `Layout.lua` and need a Lua 5.1 interpreter.
