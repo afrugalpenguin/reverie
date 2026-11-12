@@ -1,3 +1,7 @@
+**v0.1.1**
+
+- The camera orbit is about a third slower.
+
 **v0.1.0**
 
 - First release, for WoW Forever.
