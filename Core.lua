@@ -2,7 +2,7 @@
 local addonName, ns = ...
 local Layout = ns.Layout
 
-local ORBIT_SPEED = 0.03   -- MoveViewLeftStart multiplier: a slow, steady turn
+local ORBIT_SPEED = 0.02   -- MoveViewLeftStart multiplier: a slow, steady turn
 local ZOOM_OUT = 8         -- camera distance added while the overlay is up
 local FADE_DELAY = 10      -- seconds before text fades, when "Fade text after 10s" is on
 local POLL = 0.5           -- seconds between trigger checks
