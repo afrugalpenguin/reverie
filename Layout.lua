@@ -31,8 +31,8 @@ Layout.ANCHOR_NAMES = {
 Layout.OPTION_GROUPS = {
   { title = "Start automatically", keys = { "taxi", "flying", "afk" },
     labels = { "Flight paths", "Flying mount", "When AFK" } },
-  { title = "Overlay", keys = { "bars", "fade" },
-    labels = { "Letterbox bars", "Fade text after 10s" } },
+  { title = "Overlay", keys = { "bars", "fade", "surname" },
+    labels = { "Letterbox bars", "Fade text after 10s", "Show surname" } },
   { title = "Camera", keys = { "orbit", "zoom" },
     labels = { "Slow orbit", "Zoom out" } },
 }
@@ -47,7 +47,8 @@ local DEFAULTS = {
     subzone = { show = true,  anchor = "TC", free = false, x = 50, y = 22 },
     away    = { show = true,  anchor = "TR", free = false, x = 85, y = 12 },
   },
-  options = { taxi = true, flying = true, afk = true, bars = true, fade = true, orbit = true, zoom = true },
+  options = { taxi = true, flying = true, afk = true, bars = true, fade = true, surname = true,
+    orbit = true, zoom = true },
 }
 
 local function copy(t)
@@ -130,6 +131,17 @@ function Layout.FormatAway(seconds)
     return string.format("%d:%02d:%02d", h, m, s)
   end
   return string.format("%d:%02d", m, s)
+end
+
+-- Character name for the title card. Forever characters can have a surname, which may
+-- arrive as a separate value or inside one "First Last" string; full = false keeps the first name.
+function Layout.DisplayName(name, surname, full)
+  name = name or ""
+  if surname and surname ~= "" then
+    return full and (name .. " " .. surname) or name
+  end
+  if full then return name end
+  return name:match("^(%S+)") or name
 end
 
 -- Letterbox bar height: 11% of the screen, as in the design (79px at 720p).

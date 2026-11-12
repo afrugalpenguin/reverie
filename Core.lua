@@ -30,7 +30,7 @@ function ns.Texts(sample)
   end
 
   return {
-    name = UnitName("player") or "",
+    name = Layout.DisplayName(UnitName("player"), nil, ns.settings.options.surname),
     guild = guild and ("<" .. guild .. ">") or (sample and "<Guild>" or ""),
     realm = GetRealmName() or "",
     level = string.format("%s %d %s %s", LEVEL, UnitLevel("player"), UnitRace("player") or "", UnitClass("player") or ""),
