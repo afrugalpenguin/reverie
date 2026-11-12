@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-label="Reverie logo: a sunset framed by letterbox bars">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1830"/>
+      <stop offset="0.45" stop-color="#7a3a4a"/>
+      <stop offset="0.8" stop-color="#e0764a"/>
+      <stop offset="1" stop-color="#f6b764"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff0c4" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffb066" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="band">
+      <rect x="0" y="104" width="400" height="192"/>
+    </clipPath>
+  </defs>
+  <rect width="400" height="400" fill="#000000"/>
+  <g clip-path="url(#band)">
+    <rect width="400" height="400" fill="url(#sky)"/>
+    <circle cx="200" cy="242" r="130" fill="url(#glow)"/>
+    <circle cx="200" cy="242" r="54" fill="#fff2cf"/>
+    <rect x="0" y="242" width="400" height="200" fill="#140d14"/>
+  </g>
+  <rect x="0" y="242" width="400" height="1.5" fill="#f2deae" opacity="0.55"/>
+  <style>@import url("https://fonts.googleapis.com/css2?family=Jost:wght@300&amp;display=swap");</style>
+  <!-- x is nudged right by half the letter-spacing, which trails the last letter -->
+  <text x="206" y="348" text-anchor="middle" dominant-baseline="central" fill="#f2deae"
+        font-family="Jost, 'Segoe UI', sans-serif" font-weight="300" font-size="28" letter-spacing="11.76">REVERIE</text>
+</svg>
