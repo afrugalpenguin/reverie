@@ -8,7 +8,7 @@ globals = {
 
 read_globals = {
   "CameraZoomIn", "CameraZoomOut", "CreateColor", "CreateFrame", "C_Timer",
-  "GameTooltip", "GameTooltip_Hide", "GetCameraZoom", "GetGuildInfo", "GetRealmName", "GetUnitName",
+  "GameTooltip", "GameTooltip_Hide", "GetCameraZoom", "GetCVar", "SetCVar", "GetGuildInfo", "GetRealmName", "GetUnitName",
   "GetSubZoneText", "GetTime", "GetZoneText", "HideUIPanel", "InCombatLockdown",
   "InterfaceOptionsFrame", "InterfaceOptions_AddCategory", "IsFlying", "LEVEL",
   "MoveViewLeftStart", "MoveViewLeftStop", "Settings", "SettingsPanel", "UIParent",
