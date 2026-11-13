@@ -31,7 +31,7 @@ In the options window you can:
 - show or hide each text element: character name, guild, realm, level/race/class, zone, subzone and away timer
 - pin each one to one of nine screen positions (elements sharing a position stack in list order) or place it freely
 - choose what starts the overlay: flight paths, flying mount, going AFK
-- turn the letterbox bars on or off, and fade the text after 10 seconds
+- turn the letterbox bars on or off, and fade the text after 10 seconds without mouse movement (moving the mouse brings it back)
 - turn on a slow camera orbit and zoom out
 
 Elements pinned to the same position stack in a fixed order (name, guild, realm, level, zone, subzone, away). Top and bottom positions sit just inside the letterbox bars when they're on. Free positions are saved as a share of the screen, so they stay in place if you change resolution or UI scale. The subzone hides itself when it's empty or the same as the zone, the guild line disappears if you're not in a guild, and the away timer only appears while the AFK trigger is on.
