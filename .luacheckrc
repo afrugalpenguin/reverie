@@ -9,7 +9,7 @@ globals = {
 
 read_globals = {
   "CameraZoomIn", "CameraZoomOut", "CreateColor", "CreateFrame", "C_CVar", "C_Timer", "EnumerateFrames",
-  "FlipCameraYaw", "GetCursorPosition", "Screenshot", "time",
+  "ChatTypeInfo", "FlipCameraYaw", "GetCursorPosition", "hooksecurefunc", "Screenshot", "time",
   "GameTooltip", "GameTooltip_Hide", "GetCameraZoom", "GetCVar", "SetCVar", "GetGuildInfo", "GetRealmName", "GetUnitName",
   "GetSubZoneText", "GetTime", "GetZoneText", "HideUIPanel", "InCombatLockdown",
   "InterfaceOptionsFrame", "InterfaceOptions_AddCategory", "IsFlying", "LEVEL",

@@ -58,15 +58,19 @@ function Auto.Fire(trigger)
 
   if action.plain and not plain then
     plain = { trigger = trigger, clean = action.clean }
-    local ok = pcall(Screenshot)
-    if not ok then
-      AfterPlain()
-    else
-      local mine = plain
-      C_Timer.After(PLAIN_TIMEOUT, function()
-        if plain == mine then AfterPlain() end
-      end)
-    end
+    local mine = plain
+    -- The overlay chat box is hidden first, so it isn't in the screenshot.
+    ns.Chat.BeforeShot(function()
+      if plain ~= mine then return end
+      local ok = pcall(Screenshot)
+      if not ok then
+        AfterPlain()
+      else
+        C_Timer.After(PLAIN_TIMEOUT, function()
+          if plain == mine then AfterPlain() end
+        end)
+      end
+    end)
   else
     queued = Layout.AutoQueue(queued, trigger, now)
   end

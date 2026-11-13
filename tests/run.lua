@@ -950,5 +950,52 @@ test("FadeStep ignores cursor jitter within the slop", function()
   eq(L.FadeStep(f, 10 + L.CURSOR_SLOP + 1, 10, 112), "show")
 end)
 
+-- Overlay chat (#30) ---------------------------------------------------------------
+
+test("Show chat is on by default and a saved false survives Merge", function()
+  eq(L.Defaults().options.chat, true)
+  local saved = L.Defaults()
+  saved.options.chat = false
+  eq(L.Merge(saved).options.chat, false)
+end)
+
+test("Chat events cover guild, officer, whispers, party and raid only", function()
+  local want = {
+    CHAT_MSG_GUILD = "GUILD", CHAT_MSG_OFFICER = "OFFICER",
+    CHAT_MSG_WHISPER = "WHISPER", CHAT_MSG_BN_WHISPER = "BN_WHISPER",
+    CHAT_MSG_PARTY = "PARTY", CHAT_MSG_PARTY_LEADER = "PARTY_LEADER",
+    CHAT_MSG_RAID = "RAID", CHAT_MSG_RAID_LEADER = "RAID_LEADER", CHAT_MSG_RAID_WARNING = "RAID_WARNING",
+  }
+  local n = 0
+  for event, chatType in pairs(L.CHAT_EVENTS) do
+    n = n + 1
+    eq(chatType, want[event], event)
+  end
+  eq(n, 9)
+end)
+
+test("ChatLine labels channels and drops the author's realm", function()
+  eq(L.ChatLine("GUILD", "Thrall-Forever", "hello"), "[Guild] Thrall: hello")
+  eq(L.ChatLine("OFFICER", "Jaina", "meeting"), "[Officer] Jaina: meeting")
+  eq(L.ChatLine("PARTY_LEADER", "Rexxar", "pull"), "[Party Leader] Rexxar: pull")
+  eq(L.ChatLine("RAID_WARNING", "Cairne", "move"), "[Raid Warning] Cairne: move")
+  eq(L.ChatLine("WHISPER", "Sylvanas-Other", "psst"), "Sylvanas whispers: psst")
+  eq(L.ChatLine("BN_WHISPER", "Varian", "hi"), "Varian whispers: hi")
+end)
+
+test("ChatLine copes with a missing author", function()
+  eq(L.ChatLine("GUILD", nil, "hello"), "[Guild] hello")
+  eq(L.ChatLine("GUILD", "", "hello"), "[Guild] hello")
+end)
+
+test("ChatRect sits bottom right, just above the letterbox bar", function()
+  local r = L.ChatRect(1920, 1080, true)
+  eq(r.right, L.PAD.side)
+  eq(r.bottom, L.BarHeight(1080, true) + L.PAD.bar)
+  eq(r.width, math.floor(1920 * L.CHAT_WIDTH))
+  eq(r.height, L.CHAT_LINES * L.CHAT_LINE_H)
+  eq(L.ChatRect(1920, 1080, false).bottom, L.PAD.edge, "no bars: the screen edge padding")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
