@@ -108,6 +108,8 @@ local DEFAULTS = {
     quality = 9,        -- 1 to 10
     auto = { level = true, zone = false, achievement = false, boss = false },
   },
+  -- Zones each character has been to, for "first visit to a zone": { ["Name-Realm"] = { [zone] = true } }.
+  visited = {},
 }
 
 local function copy(t)
@@ -236,6 +238,19 @@ function Layout.Merge(saved)
   end
 
   MergePhoto(out, defaults.photo)
+
+  -- visited: character key -> { zone name -> true }; anything else is dropped.
+  if type(out.visited) ~= "table" then out.visited = {} end
+  for char, zones in pairs(out.visited) do
+    if type(char) ~= "string" or type(zones) ~= "table" then
+      out.visited[char] = nil
+    else
+      for zone, seen in pairs(zones) do
+        if type(zone) ~= "string" or seen ~= true then zones[zone] = nil end
+      end
+    end
+  end
+
   return out
 end
 
@@ -392,12 +407,15 @@ local UNDO = {
 
 -- The photo sequence as a list of steps for Photo.lua's state machine. Returns nil and a
 -- message when no shot type is ticked.
+-- opts.auto: an automatic shot. No self-timer, and the first shot also waits for a new second,
+-- because the automatic plain screenshot was just taken.
 --   setup:  pauseOrbit, settle, hideUI, hideOverlay, fileFormat, camera*, extras*, cvars*, waitFrames
 --   framing (timer on): guides, countdown, hideGuides
 --   per type: look, waitFrames, shoot, clearLook, then space before the next type
 --   finish
 -- (* only when the settings call for it)
-function Layout.PhotoPlan(photo)
+function Layout.PhotoPlan(photo, opts)
+  local auto = opts and opts.auto
   local types = Layout.TickedTypes(photo)
   if #types == 0 then return nil, "Tick at least one shot type on the Photo tab." end
 
@@ -414,14 +432,14 @@ function Layout.PhotoPlan(photo)
   if #Layout.PhotoCVars(photo) > 0 then add({ op = "cvars" }) end
   add({ op = "waitFrames", frames = Layout.FRAMES_AFTER_CHANGES })
 
-  if photo.timer > 0 then
+  if photo.timer > 0 and not auto then
     add({ op = "guides" })
     add({ op = "countdown", seconds = photo.timer })
     add({ op = "hideGuides" })
   end
 
   for i, t in ipairs(types) do
-    if i > 1 then add({ op = "space" }) end
+    if i > 1 or auto then add({ op = "space" }) end
     add({ op = "look", type = t })
     add({ op = "waitFrames", frames = Layout.FRAMES_AFTER_LOOK })
     add({ op = "shoot", type = t })
@@ -448,8 +466,15 @@ function Layout.NewSecond(lastSecond, nowSecond)
   return lastSecond == nil or nowSecond > lastSecond
 end
 
--- The message shown after a photo. result: { saved, total, reason }.
+-- The message shown after a photo. result: { saved, total, reason, trigger }; trigger is the
+-- automatic trigger's name, shown first.
 function Layout.ToastText(result)
+  if result.trigger then
+    local copy_ = {}
+    for k, v in pairs(result) do copy_[k] = v end
+    copy_.trigger = nil
+    return result.trigger .. ": " .. Layout.ToastText(copy_)
+  end
   if not result.reason then
     return result.saved == 1 and "Screenshot saved" or ("Screenshot saved: " .. result.saved .. " shots")
   end
@@ -458,6 +483,55 @@ function Layout.ToastText(result)
     return "Saved " .. result.saved .. " of " .. result.total .. " shots: " .. result.reason
   end
   return "Screenshot failed: " .. result.reason
+end
+
+-- Automatic shots --------------------------------------------------------------
+
+Layout.AUTO_QUEUE_SECONDS = 30 -- a queued clean capture is dropped after this long
+Layout.AUTO_REPEAT_SECONDS = 10 -- the same trigger again within this is a duplicate
+Layout.AUTO_TOAST = { level = "Level up", zone = "New zone", achievement = "Achievement", boss = "Boss defeated" }
+
+-- What a trigger does now. ctx: { running = a photo is in progress, combat, unlocked }.
+-- plain: take the immediate screenshot with the UI as it is (not during a photo, which would
+-- catch it half-way). clean: "now" or "queue" for the photo-mode capture.
+function Layout.AutoAction(ctx)
+  return {
+    plain = not ctx.running,
+    clean = (ctx.running or ctx.combat or ctx.unlocked) and "queue" or "now",
+  }
+end
+
+local function expired(queued, now)
+  return now - queued.at > Layout.AUTO_QUEUE_SECONDS
+end
+
+-- Queues a clean capture. Only one is ever held: a fresh one stays, an expired one is replaced.
+-- queued: { trigger, at } or nil. now: seconds (GetTime()).
+function Layout.AutoQueue(queued, trigger, now)
+  if queued and not expired(queued, now) then return queued end
+  return { trigger = trigger, at = now }
+end
+
+-- The queued trigger to run now, or nil. The second value is true when it had expired.
+function Layout.AutoTake(queued, now)
+  if not queued then return nil, false end
+  if expired(queued, now) then return nil, true end
+  return queued.trigger, false
+end
+
+-- True when the same trigger already fired moments ago (several achievements at once, say).
+-- last: { trigger, at } of the previous accepted trigger, or nil.
+function Layout.AutoDuplicate(last, trigger, now)
+  return last ~= nil and last.trigger == trigger and now - last.at <= Layout.AUTO_REPEAT_SECONDS
+end
+
+-- Records a visit and returns true if it's this character's first time in the zone.
+function Layout.FirstVisit(visited, char, zone)
+  if type(zone) ~= "string" or zone == "" then return false end
+  visited[char] = visited[char] or {}
+  if visited[char][zone] then return false end
+  visited[char][zone] = true
+  return true
 end
 
 -- A dropped element's centre (screen units from the top-left) as clamped x/y fractions.

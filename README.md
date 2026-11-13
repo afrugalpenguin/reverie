@@ -18,6 +18,7 @@ Copy this folder into `World of Warcraft/_forever_/Interface/AddOns/Reverie`. Th
 - `/reverie preview` shows the overlay now. Press Escape to leave it.
 - `/reverie stop` dismisses the overlay until the current trigger ends.
 - `/reverie photo`, or the "Take photo" key binding (Options › Keybindings › Reverie), takes a photo. It hides the interface and shows framing guides with the self-timer countdown, then saves one screenshot for each shot type ticked on the Photo tab of the options window. Escape cancels. Afterwards everything comes back, and a note at the top of the screen says what was saved. Photos can't be taken in combat or while the text is unlocked.
+- Automatic photos (Photo tab, "Take automatically") on level up, your first visit to a zone, an achievement or a boss kill. Each one takes a normal screenshot straight away, then a photo with your ticked types and no self-timer. If it happens in combat, the photo waits until combat ends, unless that takes more than 30 seconds.
 - `/reverie unlock` shows every text element with a dashed outline and its name, even ones you've switched off. Drag any of them with the mouse to place it freely. `/reverie lock` (or Escape) finishes. Unlocking isn't allowed in combat.
 - `/reverie text <element> on` or `off` shows or hides an element.
 - `/reverie text <element> anchor <position>` pins an element to one of nine positions: `TL`, `TC`, `TR` (top left, middle, right), `ML`, `MC`, `MR` (middle row) or `BL`, `BC`, `BR` (bottom row).

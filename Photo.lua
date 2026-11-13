@@ -275,7 +275,10 @@ Cleanup = function(reason)
   state.photo = false
 
   for _, problem in ipairs(r.problems) do Say(problem .. ". It will be tried again at your next login.") end
-  ShowToast(Layout.ToastText({ saved = r.saved, total = r.total, reason = reason }))
+  ShowToast(Layout.ToastText({ saved = r.saved, total = r.total, reason = reason, trigger = r.trigger }))
+
+  -- An automatic shot may have queued up while this one ran.
+  if ns.Auto then C_Timer.After(0.5, ns.Auto.Drain) end
 end
 
 -- Steps -------------------------------------------------------------------------------------------
@@ -432,8 +435,10 @@ end))
 
 function Photo.IsRunning() return run ~= nil end
 
--- /reverie photo and the key binding.
-function Photo.Take()
+-- /reverie photo and the key binding, and automatic shots.
+-- opts (automatic shots only): { trigger = toast name, afterSecond = the plain screenshot's
+-- clock second, so the first clean shot can't overwrite it }.
+function Photo.Take(opts)
   if run then return end -- a second press while a photo is in progress does nothing
   if InCombatLockdown() then
     Say("can't take a photo in combat.")
@@ -446,7 +451,7 @@ function Photo.Take()
   if not ns.settings then return end
 
   local photo = ns.settings.photo
-  local steps, err = Layout.PhotoPlan(photo)
+  local steps, err = Layout.PhotoPlan(photo, opts and { auto = true } or nil)
   if not steps then
     Say(err)
     return
@@ -464,13 +469,15 @@ function Photo.Take()
     steps = steps,
     cleanup = Layout.CleanupOrder(steps),
     total = #Layout.TickedTypes(photo),
+    trigger = opts and opts.trigger,
+    lastSecond = opts and opts.afterSecond,
     i = 0, saved = 0, shotId = 0,
     done = {}, hiddenFrames = {}, problems = {},
   }
   state.photo = true
 
   -- Watchdog: however the sequence gets stuck, everything comes back.
-  Later(photo.timer + run.total * (Layout.SHOT_TIMEOUT + 2) + 10, function() Cleanup("took too long") end)
+  Later((opts and 0 or photo.timer) + run.total * (Layout.SHOT_TIMEOUT + 2) + 10, function() Cleanup("took too long") end)
 
   guard(Next)()
 end

@@ -13,6 +13,7 @@ Text.lua
 Camera.lua
 Triggers.lua
 Photo.lua
+AutoShots.lua
 Slash.lua
 Options.lua
 PhotoOptions.lua

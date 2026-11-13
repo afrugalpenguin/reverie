@@ -819,5 +819,105 @@ test("ToastText reports what was saved or what failed", function()
   eq(L.ToastText({ saved = 0, total = 2, reason = "no screenshot event" }), "Screenshot failed: no screenshot event")
 end)
 
+-- Automatic shots ---------------------------------------------------------------
+
+test("AutoAction: idle takes the plain shot and the clean capture now", function()
+  local a = L.AutoAction({ running = false, combat = false, unlocked = false })
+  eq(a.plain, true)
+  eq(a.clean, "now")
+end)
+
+test("AutoAction: in combat the plain shot still happens and the clean capture queues", function()
+  local a = L.AutoAction({ running = false, combat = true, unlocked = false })
+  eq(a.plain, true)
+  eq(a.clean, "queue")
+end)
+
+test("AutoAction: during a photo there's no plain shot and the clean capture queues", function()
+  local a = L.AutoAction({ running = true, combat = false, unlocked = false })
+  eq(a.plain, false)
+  eq(a.clean, "queue")
+  eq(L.AutoAction({ running = false, combat = false, unlocked = true }).clean, "queue")
+end)
+
+test("AutoQueue holds one trigger and keeps the first while it's fresh", function()
+  local q = L.AutoQueue(nil, "boss", 100)
+  eq(q.trigger, "boss")
+  eq(q.at, 100)
+  q = L.AutoQueue(q, "achievement", 110)
+  eq(q.trigger, "boss")
+  eq(q.at, 100)
+  q = L.AutoQueue(q, "boss", 120)
+  eq(q.at, 100)
+end)
+
+test("AutoQueue replaces an expired trigger", function()
+  local q = L.AutoQueue(L.AutoQueue(nil, "boss", 100), "level", 100 + L.AUTO_QUEUE_SECONDS + 1)
+  eq(q.trigger, "level")
+end)
+
+test("AutoTake returns a fresh trigger and drops an expired one", function()
+  eq(L.AutoTake(nil, 100), nil)
+  eq(L.AutoTake({ trigger = "boss", at = 100 }, 100 + L.AUTO_QUEUE_SECONDS), "boss")
+  local trigger, expired = L.AutoTake({ trigger = "boss", at = 100 }, 100 + L.AUTO_QUEUE_SECONDS + 0.5)
+  eq(trigger, nil)
+  eq(expired, true)
+  eq(L.AUTO_QUEUE_SECONDS, 30)
+end)
+
+test("AutoDuplicate ignores the same trigger again within a few seconds", function()
+  eq(L.AutoDuplicate(nil, "achievement", 100), false)
+  local last = { trigger = "achievement", at = 100 }
+  eq(L.AutoDuplicate(last, "achievement", 100 + L.AUTO_REPEAT_SECONDS - 1), true)
+  eq(L.AutoDuplicate(last, "achievement", 100 + L.AUTO_REPEAT_SECONDS + 1), false)
+  eq(L.AutoDuplicate(last, "boss", 101), false)
+end)
+
+test("FirstVisit is true once per zone per character and records it", function()
+  local visited = {}
+  eq(L.FirstVisit(visited, "Aldric-Camelot", "Elwynn Forest"), true)
+  eq(visited["Aldric-Camelot"]["Elwynn Forest"], true)
+  eq(L.FirstVisit(visited, "Aldric-Camelot", "Elwynn Forest"), false)
+  eq(L.FirstVisit(visited, "Aldric-Camelot", "Westfall"), true)
+  eq(L.FirstVisit(visited, "Brynn-Camelot", "Elwynn Forest"), true)
+  eq(L.FirstVisit(visited, "Aldric-Camelot", ""), false)
+  eq(L.FirstVisit(visited, "Aldric-Camelot", nil), false)
+end)
+
+test("Merge keeps visited zones and drops malformed entries", function()
+  local m = L.Merge({ version = 2, visited = {
+    ["Aldric-Camelot"] = { ["Elwynn Forest"] = true, Westfall = "yes", [3] = true },
+    ["Brynn-Camelot"] = "junk",
+  } })
+  eq(m.visited["Aldric-Camelot"]["Elwynn Forest"], true)
+  eq(m.visited["Aldric-Camelot"].Westfall, nil)
+  eq(m.visited["Aldric-Camelot"][3], nil)
+  eq(m.visited["Brynn-Camelot"], nil)
+  eq(type(L.Merge({ version = 2, visited = 5 }).visited), "table")
+  eq(next(L.Merge(nil).visited), nil)
+end)
+
+test("PhotoPlan for an automatic shot: no self-timer, and a wait for a new second first", function()
+  local p = L.Defaults().photo
+  p.timer = 10
+  local steps = L.PhotoPlan(p, { auto = true })
+  eq(count(steps, "guides"), 0)
+  eq(count(steps, "countdown"), 0)
+  for i, s in ipairs(steps) do
+    if s.op == "look" then
+      eq(steps[i - 1].op, "space", "the first look waits for a new second")
+      break
+    end
+  end
+  eq(count(steps, "space"), 5)
+  eq(count(L.PhotoPlan(p), "countdown"), 1) -- manual photos keep the timer
+end)
+
+test("ToastText names the trigger", function()
+  eq(L.ToastText({ saved = 5, total = 5, trigger = "Level up" }), "Level up: Screenshot saved: 5 shots")
+  eq(L.ToastText({ saved = 0, total = 5, reason = "entered combat", trigger = "Boss defeated" }),
+    "Boss defeated: Screenshot failed: entered combat")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

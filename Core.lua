@@ -50,9 +50,12 @@ function ns.Refresh()
 end
 
 function ns.ResetSettings()
-  local restore = ns.settings and ns.settings.restore -- CVars still waiting to be put back
+  -- Not settings, so a reset keeps them: CVars still waiting to be put back, and zones visited.
+  local restore = ns.settings and ns.settings.restore
+  local visited = ns.settings and ns.settings.visited
   ns.settings = Layout.Defaults()
   ns.settings.restore = restore
+  ns.settings.visited = visited or ns.settings.visited
   ReverieDB = ns.settings
   ns.Refresh()
 end
@@ -107,6 +110,7 @@ events:SetScript("OnEvent", function(self, event, arg1)
       if not state.active then UIParent:Show() end
     end
     ns.Triggers.Evaluate()
+    ns.Auto.Drain() -- an automatic shot queued during combat
   elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
     ns.Text.Rescale()
     ns.Refresh()
