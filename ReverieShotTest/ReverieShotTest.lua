@@ -77,7 +77,8 @@ burstTex:SetAllPoints(overlay)
 local blendTex = overlay:CreateTexture(nil, "ARTWORK")
 blendTex:SetAllPoints(overlay)
 
-local restoreAll  -- forward declaration
+local restoreAll           -- forward declaration
+local restorePendingCVars  -- forward declaration, defined with the CVar helpers
 
 -- Wraps an async callback so an error in it restores everything instead of stranding the UI.
 local function guard(label, fn)
@@ -163,6 +164,7 @@ restoreAll = function()
   onShotEvent = nil
   hideOverlays()
   showUI()
+  if restorePendingCVars then restorePendingCVars() end
   busy = nil
 end
 
@@ -241,6 +243,8 @@ end
 -- /rst burst
 ---------------------------------------------------------------------------------------------
 
+local BURST_SPACING = 1.5  -- seconds between one shot's success and the next shot
+
 local BURST = {
   { label = "RED overlay",  color = { 1, 0, 0, 0.35 } },
   { label = "NO overlay" },
@@ -267,7 +271,7 @@ local function cmdBurst()
         info("burst shot " .. i .. " (" .. step.label .. "): not taken")
       elseif r.event == "SCREENSHOT_SUCCEEDED" then
         pass("burst shot " .. i .. " (" .. step.label .. "): " .. r.event .. " in " .. ms(r.elapsed)
-          .. " (gap since previous step " .. ms(r.gap) .. ")")
+          .. " (gap since previous success " .. ms(r.gap) .. ")")
       else
         fail("burst shot " .. i .. " (" .. step.label .. "): " .. r.event
           .. (r.elapsed and (" after " .. ms(r.elapsed)) or ""))
@@ -305,8 +309,12 @@ local function cmdBurst()
       local gap = tShot - tPrev
       onShotEvent = function(event)
         results[i] = { event = event, elapsed = now() - tShot, gap = gap }
-        if event == "SCREENSHOT_SUCCEEDED" then
-          shoot(i + 1, now())
+        if event == "SCREENSHOT_SUCCEEDED" and i == #BURST then
+          finish()
+        elseif event == "SCREENSHOT_SUCCEEDED" then
+          -- Screenshot filenames only go down to the second, so shots closer than that overwrite.
+          local tDone = now()
+          arm(BURST_SPACING, "burst spacing", function() shoot(i + 1, tDone) end)
         else
           finish("shot " .. i .. " got " .. event)
         end
@@ -323,14 +331,22 @@ local function cmdBurst()
 end
 
 ---------------------------------------------------------------------------------------------
--- /rst cvars
+-- CVar helpers shared by /rst cvars and /rst names
 ---------------------------------------------------------------------------------------------
 
-local CVARS = {
-  "screenshotFormat", "screenshotQuality",
-  "nameplateShowAll", "nameplateShowFriends", "nameplateShowEnemies",
-  "UnitNameFriendlyPlayerName", "UnitNameEnemyPlayerName", "UnitNameNPC",
+-- Every CVar that might draw a name, title or nameplate over the world. Ones that do not exist
+-- on this client read back nil and are reported, never touched.
+local NAME_CVARS = {
+  "nameplateShowAll", "nameplateShowEnemies",
+  "UnitNameOwn", "UnitNameFriendlyPlayerName", "UnitNameEnemyPlayerName",
+  "UnitNameNPC", "UnitNameFriendlySpecialNPCName", "UnitNameHostleNPC", "UnitNameInteractiveNPC",
+  "UnitNameNonCombatCreatureName", "UnitNamePlayerGuild", "UnitNamePlayerPVPTitle",
+  "UnitNameFriendlyPetName", "UnitNameEnemyPetName", "UnitNameFriendlyGuardianName",
+  "UnitNameEnemyGuardianName", "UnitNameFriendlyTotemName", "UnitNameEnemyTotemName",
 }
+
+local CVARS = { "screenshotFormat", "screenshotQuality", "nameplateShowFriends" }
+for _, name in ipairs(NAME_CVARS) do CVARS[#CVARS + 1] = name end
 
 local function testValueFor(name, current)
   if name == "screenshotFormat" then
@@ -341,57 +357,96 @@ local function testValueFor(name, current)
   return current == "1" and "0" or "1"
 end
 
+-- Picks the getter and setter, preferring C_CVar and falling back to the globals.
+local function cvarApi()
+  local c = type(C_CVar) == "table" and C_CVar or {}
+  local api = { get = c.GetCVar, set = c.SetCVar, getLabel = "C_CVar.GetCVar", setLabel = "C_CVar.SetCVar" }
+  if type(api.get) ~= "function" then
+    fail("C_CVar.GetCVar missing, falling back to global GetCVar")
+    api.get, api.getLabel = GetCVar, "GetCVar"
+  end
+  if type(api.set) ~= "function" then
+    fail("C_CVar.SetCVar missing, falling back to global SetCVar")
+    api.set, api.setLabel = SetCVar, "SetCVar"
+  end
+  return api
+end
+
+-- Returns the value as a string, or nil (already reported) when unreadable or missing.
+local function readCVar(api, name)
+  local ok, value = try(api.getLabel .. "(" .. name .. ")", api.get, name)
+  if not ok then return nil end
+  if value == nil then
+    fail(name .. ": does not exist on this client, not touching it")
+    return nil
+  end
+  return tostring(value)
+end
+
+-- Sets a value and reads it back. Returns stuck, readBack, setter's return value.
+local function setCVar(api, name, value)
+  local _, result = try(api.setLabel .. "(" .. name .. ", " .. value .. ")", api.set, name, value)
+  local _, readBack = try(api.getLabel .. "(" .. name .. ")", api.get, name)
+  return tostring(readBack) == value, tostring(readBack), result
+end
+
+-- Restores a value, proves it by reading back, and tries the global setter if that fails.
+local function restoreCVar(api, name, original)
+  local ok, current = setCVar(api, name, original)
+  if not ok and api.set ~= SetCVar then
+    try("SetCVar(" .. name .. ") fallback restore", SetCVar, name, original)
+    local _, value = try(api.getLabel .. "(" .. name .. ")", api.get, name)
+    current = tostring(value)
+    ok = current == original
+  end
+  if not ok then
+    fail(name .. ": NOT RESTORED, now '" .. current .. "'. Fix with: /console " .. name .. " " .. original)
+  end
+  return ok
+end
+
+-- CVars /rst names has changed and not yet restored. restoreAll() restores these too, so an
+-- error mid-test cannot leave names switched off.
+local pendingCVars
+
+restorePendingCVars = function()
+  if not pendingCVars then return 0, 0 end
+  local pending = pendingCVars
+  pendingCVars = nil
+  local left = 0
+  for _, c in ipairs(pending.list) do
+    if not restoreCVar(pending.api, c.name, c.original) then left = left + 1 end
+  end
+  return left, #pending.list
+end
+
+---------------------------------------------------------------------------------------------
+-- /rst cvars
+---------------------------------------------------------------------------------------------
+
 local function cmdCvars()
   if not begin("cvars") then return end
   if not checkCombat("cvars") then busy = nil return end
 
-  local api = type(C_CVar) == "table" and C_CVar or nil
-  local getFn = api and api.GetCVar
-  local setFn = api and api.SetCVar
-  local getLabel, setLabel = "C_CVar.GetCVar", "C_CVar.SetCVar"
-  if type(getFn) == "function" then
-    pass("C_CVar.GetCVar exists")
-  else
-    fail("C_CVar.GetCVar missing (C_CVar is " .. type(C_CVar) .. "), falling back to global GetCVar")
-    getFn, getLabel = GetCVar, "GetCVar"
-  end
-  if type(setFn) == "function" then
-    pass("C_CVar.SetCVar exists")
-  else
-    fail("C_CVar.SetCVar missing, falling back to global SetCVar")
-    setFn, setLabel = SetCVar, "SetCVar"
-  end
+  local api = cvarApi()
+  info("cvars: using " .. api.getLabel .. " / " .. api.setLabel)
 
   local leftChanged = 0
   for _, name in ipairs(CVARS) do
-    local okGet, original = try(getLabel .. "(" .. name .. ")", getFn, name)
-    if okGet and original == nil then
-      fail(name .. ": GetCVar returned nil (CVar does not exist on this client), not touching it")
-    elseif okGet then  -- when the read failed, try() has already printed the FAIL line
-      original = tostring(original)
+    local original = readCVar(api, name)
+    if original then
       local testValue = testValueFor(name, original)
-      local _, setResult = try(setLabel .. "(" .. name .. ", " .. testValue .. ")", setFn, name, testValue)
-      local _, readBack = try(getLabel .. "(" .. name .. ")", getFn, name)
-      if tostring(readBack) == testValue then
-        pass(name .. ": read '" .. original .. "', set '" .. testValue .. "' stuck (set returned "
-          .. tostring(setResult) .. ")")
+      local stuck, readBack, result = setCVar(api, name, testValue)
+      if stuck then
+        pass(name .. ": read '" .. original .. "', set '" .. testValue .. "' stuck (set returned " .. tostring(result) .. ")")
       else
         fail(name .. ": read '" .. original .. "', set '" .. testValue .. "' BLOCKED/IGNORED, reads back '"
-          .. tostring(readBack) .. "' (set returned " .. tostring(setResult) .. ")")
+          .. readBack .. "' (set returned " .. tostring(result) .. ")")
       end
-
-      -- Restore, and prove it by reading back. Fall back to the global setter if needed.
-      try(setLabel .. "(" .. name .. ", " .. original .. ") restore", setFn, name, original)
-      local _, restored = try(getLabel .. "(" .. name .. ") after restore", getFn, name)
-      if tostring(restored) ~= original and setFn ~= SetCVar then
-        try("SetCVar(" .. name .. ") fallback restore", SetCVar, name, original)
-        _, restored = try(getLabel .. "(" .. name .. ") after fallback restore", getFn, name)
-      end
-      if tostring(restored) == original then
+      if restoreCVar(api, name, original) then
         info(name .. ": restored to '" .. original .. "'")
       else
         leftChanged = leftChanged + 1
-        fail(name .. ": NOT RESTORED, now '" .. tostring(restored) .. "'. Fix with: /console " .. name .. " " .. original)
       end
     end
   end
@@ -402,6 +457,66 @@ local function cmdCvars()
     fail("cvars: " .. leftChanged .. " CVar(s) left changed, see lines above")
   end
   busy = nil
+end
+
+---------------------------------------------------------------------------------------------
+-- /rst names: every name CVar off, UI hidden, one screenshot, then everything restored.
+-- The file shows whether any name, title or nameplate is still drawn.
+---------------------------------------------------------------------------------------------
+
+local function cmdNames()
+  if not begin("names") then return end
+  if not checkCombat("names") then busy = nil return end
+
+  local api = cvarApi()
+  pendingCVars = { api = api, list = {} }
+  local tShot
+
+  local function finish(result)
+    disarm()
+    cancelFrames()
+    onShotEvent = nil
+    showUI()
+    local left, total = restorePendingCVars()
+    if result == "SCREENSHOT_SUCCEEDED" then
+      pass("names: SCREENSHOT_SUCCEEDED " .. ms(now() - tShot) .. " after Screenshot(). Check the file for leftover names.")
+    else
+      fail("names: " .. tostring(result))
+    end
+    if left == 0 then
+      pass("names: all " .. total .. " changed CVar(s) restored")
+    else
+      fail("names: " .. left .. " CVar(s) left changed, see lines above")
+    end
+    busy = nil
+  end
+
+  for _, name in ipairs(NAME_CVARS) do
+    local original = readCVar(api, name)
+    if original == "0" then
+      info(name .. ": already '0'")
+    elseif original then
+      -- Recorded before setting, so even a half-applied set gets restored.
+      local list = pendingCVars.list
+      list[#list + 1] = { name = name, original = original }
+      local stuck, readBack = setCVar(api, name, "0")
+      if stuck then
+        pass(name .. ": '" .. original .. "' -> '0'")
+      else
+        fail(name .. ": set to '0' BLOCKED/IGNORED, reads back '" .. readBack .. "'")
+      end
+    end
+  end
+
+  arm(5, "names timeout", function() finish("TIMEOUT - no screenshot event within 5 s of hiding the UI") end)
+  if not hideUI() then finish("could not hide UIParent") return end
+
+  -- A few extra frames so the name changes are drawn before the capture.
+  afterFrames(5, "names frame wait", function()
+    onShotEvent = finish
+    tShot = now()
+    if not try("Screenshot()", Screenshot) then finish("Screenshot() call failed") end
+  end)
 end
 
 ---------------------------------------------------------------------------------------------
@@ -476,7 +591,7 @@ end
 -- Slash command
 ---------------------------------------------------------------------------------------------
 
-local COMMANDS = { shot = cmdShot, burst = cmdBurst, cvars = cmdCvars, blend = cmdBlend, cam = cmdCam }
+local COMMANDS = { shot = cmdShot, burst = cmdBurst, cvars = cmdCvars, names = cmdNames, blend = cmdBlend, cam = cmdCam }
 
 SLASH_REVERIESHOTTEST1 = "/rst"
 SlashCmdList.REVERIESHOTTEST = function(msg)
@@ -488,7 +603,7 @@ SlashCmdList.REVERIESHOTTEST = function(msg)
   end
   local fn = COMMANDS[sub]
   if not fn then
-    info("usage: /rst shot | burst | cvars | blend | cam | reset")
+    info("usage: /rst shot | burst | cvars | names | blend | cam | reset")
     return
   end
   local ok, err = pcall(fn)
