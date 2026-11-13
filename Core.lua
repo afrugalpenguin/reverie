@@ -7,16 +7,10 @@ local state = {
   manual = false,     -- started from "Preview in game" or /reverie preview
   dismissed = false,  -- Escape pressed; stays down until the trigger ends
   unlocked = false,   -- /reverie unlock: elements are draggable, triggers are paused
+  photo = false,      -- a photo sequence is running; triggers are paused
   afkSince = nil,
 }
 ns.state = state
-
-local function RestoreOwnName()
-  if state.restoreOwnName then
-    SetCVar("UnitNameOwn", "1")
-    state.restoreOwnName = false
-  end
-end
 
 function ns.Start()
   if state.active or state.unlocked or InCombatLockdown() then return end
@@ -24,11 +18,9 @@ function ns.Start()
   state.active = true
 
   UIParent:Hide()
-  -- The name above the character isn't part of UIParent, so hide it separately.
-  if GetCVar("UnitNameOwn") == "1" then
-    SetCVar("UnitNameOwn", "0")
-    state.restoreOwnName = true
-  end
+  -- The name above the character isn't part of UIParent, so hide it separately. CVars.Set records
+  -- the original first, so a crash with the overlay up is repaired at the next login.
+  ns.CVars.Set("overlay", "UnitNameOwn", "0")
   ns.Text.Show()
   ns.Text.Render()
   if o.fade then ns.Text.StartFade() end
@@ -42,7 +34,7 @@ function ns.Stop()
 
   ns.Text.StopFade()
   ns.Camera.End()
-  RestoreOwnName()
+  ns.CVars.Restore("overlay")
   ns.Text.Hide()
   if InCombatLockdown() then
     state.showUIAfterCombat = true
@@ -58,7 +50,9 @@ function ns.Refresh()
 end
 
 function ns.ResetSettings()
+  local restore = ns.settings and ns.settings.restore -- CVars still waiting to be put back
   ns.settings = Layout.Defaults()
+  ns.settings.restore = restore
   ReverieDB = ns.settings
   ns.Refresh()
 end
@@ -75,14 +69,22 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
 events:SetScript("OnEvent", function(self, event, arg1)
   if event == "PLAYER_LOGOUT" then
-    -- Settings are saved on logout (an AFK timeout logs out with the overlay up).
-    RestoreOwnName()
+    -- Settings are saved on logout (an AFK timeout logs out with the overlay up), so put every
+    -- changed CVar back first.
+    ns.Photo.Abort("logged out")
+    ns.CVars.RestoreAll()
   elseif event == "ADDON_LOADED" then
     if arg1 ~= addonName then return end
     ns.settings = Layout.Merge(ReverieDB)
     ReverieDB = ns.settings
     self:UnregisterEvent("ADDON_LOADED")
   elseif event == "PLAYER_LOGIN" then
+    -- Repair CVars left changed by a crash or reload in the middle of a photo or the overlay.
+    local count, failed = ns.CVars.RestoreAll()
+    if count > 0 then
+      print("|cfff2deaeReverie|r: put back " .. (count - #failed) .. " game setting(s) left changed last session."
+        .. (#failed > 0 and (" Couldn't restore: " .. table.concat(failed, ", ") .. ".") or ""))
+    end
     ns.Text.Create()
     if ns.RegisterSettingsCategory then ns.RegisterSettingsCategory() end
     for _, e in ipairs({
@@ -96,6 +98,7 @@ events:SetScript("OnEvent", function(self, event, arg1)
     ns.Triggers.Begin()
   elseif event == "PLAYER_REGEN_DISABLED" then
     -- Fires just before combat lockdown, while UIParent can still be shown.
+    ns.Photo.Abort("entered combat")
     ns.Text.Lock()
     ns.Stop()
   elseif event == "PLAYER_REGEN_ENABLED" then

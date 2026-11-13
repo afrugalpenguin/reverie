@@ -347,6 +347,119 @@ function Layout.StampSettings(photo)
   return { options = { bars = false }, elements = elements }
 end
 
+-- Photo capture ----------------------------------------------------------------
+
+Layout.PHOTO_SETTLE = 0.3       -- seconds for the camera to settle after pausing the orbit
+Layout.FRAMES_AFTER_LOOK = 2    -- frames to wait after drawing a look, before Screenshot()
+Layout.FRAMES_AFTER_CHANGES = 5 -- frames to wait after changing CVars or hiding frames
+Layout.SHOT_TIMEOUT = 5         -- seconds to wait for SCREENSHOT_SUCCEEDED / _FAILED
+
+-- CVars switched to "0" during a shot. Any that read back nil on this client are skipped.
+-- nameplateShowFriends doesn't exist on Forever but costs nothing to try.
+Layout.PLATE_CVARS = { "nameplateShowAll", "nameplateShowEnemies", "nameplateShowFriends" }
+Layout.NAME_CVARS = {
+  "UnitNameOwn", "UnitNameFriendlyPlayerName", "UnitNameEnemyPlayerName",
+  "UnitNameNPC", "UnitNameFriendlySpecialNPCName", "UnitNameHostleNPC", "UnitNameInteractiveNPC",
+  "UnitNameNonCombatCreatureName", "UnitNamePlayerGuild", "UnitNamePlayerPVPTitle",
+  "UnitNameFriendlyPetName", "UnitNameEnemyPetName", "UnitNameFriendlyGuardianName",
+  "UnitNameEnemyGuardianName", "UnitNameFriendlyTotemName", "UnitNameEnemyTotemName",
+}
+
+-- yaw: degrees for FlipCameraYaw (undone by turning back). zoom: camera distance added.
+Layout.CAMERA_PRESETS = {
+  portrait = { yaw = 180 },
+  profile  = { yaw = 90 },
+  wide     = { zoom = 10 },
+}
+
+-- CVars a photo with these settings switches off, in order.
+function Layout.PhotoCVars(photo)
+  local out = {}
+  if photo.hidePlates then
+    for _, name in ipairs(Layout.PLATE_CVARS) do out[#out + 1] = name end
+  end
+  if photo.hideNames then
+    for _, name in ipairs(Layout.NAME_CVARS) do out[#out + 1] = name end
+  end
+  return out
+end
+
+-- Setup steps and the cleanup key that undoes each. Cleanup runs these keys in reverse.
+local UNDO = {
+  pauseOrbit = "orbit", hideUI = "ui", hideOverlay = "overlay", fileFormat = "fileFormat",
+  camera = "camera", extras = "frames", cvars = "cvars",
+}
+
+-- The photo sequence as a list of steps for Photo.lua's state machine. Returns nil and a
+-- message when no shot type is ticked.
+--   setup:  pauseOrbit, settle, hideUI, hideOverlay, fileFormat, camera*, extras*, cvars*, waitFrames
+--   framing (timer on): guides, countdown, hideGuides
+--   per type: look, waitFrames, shoot, clearLook, then space before the next type
+--   finish
+-- (* only when the settings call for it)
+function Layout.PhotoPlan(photo)
+  local types = Layout.TickedTypes(photo)
+  if #types == 0 then return nil, "Tick at least one shot type on the Photo tab." end
+
+  local steps = {}
+  local function add(step) steps[#steps + 1] = step end
+
+  add({ op = "pauseOrbit" })
+  add({ op = "settle", seconds = Layout.PHOTO_SETTLE })
+  add({ op = "hideUI" })
+  add({ op = "hideOverlay" })
+  add({ op = "fileFormat" })
+  if Layout.CAMERA_PRESETS[photo.camera] then add({ op = "camera", preset = photo.camera }) end
+  if photo.hideExtras then add({ op = "extras" }) end
+  if #Layout.PhotoCVars(photo) > 0 then add({ op = "cvars" }) end
+  add({ op = "waitFrames", frames = Layout.FRAMES_AFTER_CHANGES })
+
+  if photo.timer > 0 then
+    add({ op = "guides" })
+    add({ op = "countdown", seconds = photo.timer })
+    add({ op = "hideGuides" })
+  end
+
+  for i, t in ipairs(types) do
+    if i > 1 then add({ op = "space" }) end
+    add({ op = "look", type = t })
+    add({ op = "waitFrames", frames = Layout.FRAMES_AFTER_LOOK })
+    add({ op = "shoot", type = t })
+    add({ op = "clearLook" })
+  end
+
+  add({ op = "finish" })
+  return steps
+end
+
+-- Cleanup keys for a plan: everything its setup changes, undone in reverse order.
+function Layout.CleanupOrder(steps)
+  local out = {}
+  for i = #steps, 1, -1 do
+    local key = UNDO[steps[i].op]
+    if key then out[#out + 1] = key end
+  end
+  return out
+end
+
+-- Shot spacing: screenshot filenames only go down to the second, so the next shot waits until
+-- the clock's second has moved on from the previous shot's.
+function Layout.NewSecond(lastSecond, nowSecond)
+  return lastSecond == nil or nowSecond > lastSecond
+end
+
+-- The message shown after a photo. result: { saved, total, reason }.
+function Layout.ToastText(result)
+  if not result.reason then
+    return result.saved == 1 and "Screenshot saved" or ("Screenshot saved: " .. result.saved .. " shots")
+  end
+  if result.reason == "cancelled" and result.saved == 0 then return "Screenshot cancelled" end
+  if result.saved > 0 then
+    return "Saved " .. result.saved .. " of " .. result.total .. " shots: " .. result.reason
+  end
+  return "Screenshot failed: " .. result.reason
+end
+
 -- A dropped element's centre (screen units from the top-left) as clamped x/y fractions.
 function Layout.FreeFromPoint(px, py, screenW, screenH)
   if screenW <= 0 or screenH <= 0 then return 0.5, 0.5 end
