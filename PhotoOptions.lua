@@ -114,7 +114,7 @@ local function BuildLeft(page)
     At(cb, col, 16 + ((i - 1) % 2) * 145, 34 + math.floor((i - 1) / 2) * 28)
     widgets.types[t] = cb
   end
-  Note(col, 20, 124, 290, "Every ticked type is saved, about 1.5 seconds apart.")
+  Note(col, 20, 124, 290, "Every ticked type is saved, about a second apart.")
 
   BuildStamp(col)
 
