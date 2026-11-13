@@ -425,5 +425,222 @@ test("BarHeight is 11% of the screen and zero when bars are off", function()
   eq(L.BarHeight(720, false), 0)
 end)
 
+-- Photo settings ----------------------------------------------------------------
+
+test("photo defaults", function()
+  local p = L.Defaults().photo
+  for _, t in ipairs(L.PHOTO_TYPES) do eq(p.types[t], true, t) end
+  eq(p.stamp.name, true)
+  eq(p.stamp.guild, true)
+  eq(p.stamp.zone, true)
+  eq(p.stamp.date, true)
+  eq(p.stamp.corner, "BR")
+  eq(p.vignette, 60)
+  eq(p.frame, "film")
+  eq(p.camera, "current")
+  eq(p.timer, 3)
+  eq(p.hidePlates, true)
+  eq(p.hideNames, true)
+  eq(p.hideExtras, false)
+  eq(p.format, "jpeg")
+  eq(p.quality, 9)
+  eq(p.auto.level, true)
+  eq(p.auto.zone, false)
+  eq(p.auto.achievement, false)
+  eq(p.auto.boss, false)
+end)
+
+test("Merge gives a save without a photo block the photo defaults", function()
+  local m = L.Merge({ version = 2, elements = { name = { show = false } } })
+  eq(m.photo.frame, "film")
+  eq(m.photo.types.sepia, true)
+  eq(m.elements.name.show, false)
+  eq(L.Merge(v011Save()).photo.quality, 9) -- 0.1.x saves still load
+  eq(L.Merge({ version = 2, photo = "junk" }).photo.timer, 3)
+end)
+
+test("Merge keeps good photo values", function()
+  local m = L.Merge({ version = 2, photo = {
+    types = { clean = false, sepia = false },
+    stamp = { date = false, corner = "TL" },
+    vignette = 0, frame = "portrait", camera = "wide", timer = 10,
+    hidePlates = false, hideNames = false, hideExtras = true,
+    format = "png", quality = 1, auto = { boss = true, level = false },
+  } })
+  local p = m.photo
+  eq(p.types.clean, false)
+  eq(p.types.sepia, false)
+  eq(p.types.stamped, true)
+  eq(p.stamp.date, false)
+  eq(p.stamp.corner, "TL")
+  eq(p.vignette, 0)
+  eq(p.frame, "portrait")
+  eq(p.camera, "wide")
+  eq(p.timer, 10)
+  eq(p.hidePlates, false)
+  eq(p.hideNames, false)
+  eq(p.hideExtras, true)
+  eq(p.format, "png")
+  eq(p.quality, 1)
+  eq(p.auto.boss, true)
+  eq(p.auto.level, false)
+end)
+
+test("Merge replaces bad photo values field by field", function()
+  local p = L.Merge({ version = 2, photo = {
+    types = { clean = "yes", stamped = 0 },
+    stamp = { name = 1, corner = "TC" },
+    vignette = 140, frame = "wide", camera = "fisheye", timer = 4,
+    hidePlates = "no", hideExtras = nil, format = "gif", quality = 11,
+    auto = { zone = "sometimes" },
+  } }).photo
+  eq(p.types.clean, true)
+  eq(p.types.stamped, true)
+  eq(p.stamp.name, true)
+  eq(p.stamp.corner, "BR") -- TC is a text anchor, not a stamp corner
+  eq(p.vignette, 60)
+  eq(p.frame, "film")
+  eq(p.camera, "current")
+  eq(p.timer, 3)
+  eq(p.hidePlates, true)
+  eq(p.hideExtras, false)
+  eq(p.format, "jpeg")
+  eq(p.quality, 9)
+  eq(p.auto.zone, false)
+  local q = L.Merge({ version = 2, photo = { vignette = -1, quality = 0, timer = "3" } }).photo
+  eq(q.vignette, 60)
+  eq(q.quality, 9)
+  eq(q.timer, 3)
+  local r = L.Merge({ version = 2, photo = { vignette = 0 / 0, quality = 7.6, types = "all" } }).photo
+  eq(r.vignette, 60)
+  eq(r.quality, 8)
+  eq(r.types.clean, true)
+end)
+
+test("Merge keeps unknown photo keys", function()
+  local p = L.Merge({ version = 2, photo = {
+    future = "x", types = { infrared = true }, stamp = { weather = true }, auto = { death = true },
+  } }).photo
+  eq(p.future, "x")
+  eq(p.types.infrared, true)
+  eq(p.stamp.weather, true)
+  eq(p.auto.death, true)
+end)
+
+local function ids(list) return table.concat(list, ",") end
+
+test("TickedTypes lists ticked types in the fixed order", function()
+  local p = L.Defaults().photo
+  eq(ids(L.TickedTypes(p)), "clean,stamped,vignetted,saturated,sepia")
+  p.types.clean, p.types.saturated = false, false
+  eq(ids(L.TickedTypes(p)), "stamped,vignetted,sepia")
+  for _, t in ipairs(L.PHOTO_TYPES) do p.types[t] = false end
+  eq(#L.TickedTypes(p), 0)
+end)
+
+-- Crop rectangles ---------------------------------------------------------------
+
+local function checkCrop(frame, w, h, ratio)
+  local r = L.CropRect(frame, w, h)
+  near(r.width / r.height, ratio, frame .. " ratio at " .. w .. "x" .. h)
+  eq(r.left >= 0 and r.top >= 0, true, "inside")
+  eq(r.left + r.width <= w + 1e-9 and r.top + r.height <= h + 1e-9, true, "inside")
+  -- As large as possible: it touches both edges along one axis.
+  eq(math.abs(r.width - w) < 1e-9 or math.abs(r.height - h) < 1e-9, true, "fills one axis")
+  near(r.left * 2 + r.width, w, "centred across")
+  near(r.top * 2 + r.height, h, "centred down")
+  return r
+end
+
+test("CropRect full is the whole screen", function()
+  local r = L.CropRect("full", 1920, 1080)
+  eq(r.left, 0)
+  eq(r.top, 0)
+  eq(r.width, 1920)
+  eq(r.height, 1080)
+end)
+
+for _, screen in ipairs({ { 1920, 1080 }, { 2560, 1080 }, { 1080, 1920 }, { 1365, 768 } }) do
+  local w, h = screen[1], screen[2]
+  test("CropRect at " .. w .. "x" .. h, function()
+    checkCrop("film", w, h, 2.39)
+    checkCrop("square", w, h, 1)
+    checkCrop("portrait", w, h, 9 / 16)
+  end)
+end
+
+test("CropRect film letterboxes a 16:9 screen", function()
+  local r = L.CropRect("film", 1920, 1080)
+  eq(r.width, 1920)
+  near(r.height, 1920 / 2.39)
+  near(r.top, (1080 - 1920 / 2.39) / 2)
+end)
+
+test("CropRect portrait pillarboxes a 16:9 screen", function()
+  local r = L.CropRect("portrait", 1920, 1080)
+  eq(r.height, 1080)
+  near(r.width, 607.5)
+  near(r.left, 656.25)
+end)
+
+test("CropRect falls back to full for an unknown frame", function()
+  eq(L.CropRect("bogus", 800, 600).width, 800)
+end)
+
+-- Stamp -------------------------------------------------------------------------
+
+local PARTS = { name = "Aldric", guild = "Lantern Watch", zone = "Elwynn Forest", date = "13 Nov 2026" }
+
+test("StampTexts builds each line from its part", function()
+  local t = L.StampTexts(L.Defaults().photo.stamp, PARTS)
+  eq(t.name, "Aldric")
+  eq(t.guild, "<Lantern Watch>")
+  eq(t.zone, "Elwynn Forest")
+  eq(t.date, "13 Nov 2026")
+end)
+
+test("StampTexts leaves unticked and missing parts empty", function()
+  local stamp = L.Defaults().photo.stamp
+  stamp.zone = false
+  local t = L.StampTexts(stamp, { name = "Aldric", date = "13 Nov 2026" })
+  eq(t.zone, "")
+  eq(t.guild, "") -- no guild
+  eq(t.name, "Aldric")
+  eq(L.StampTexts(stamp, { name = "Aldric", guild = "" }).guild, "")
+end)
+
+test("the stamp stacks name, guild, zone, date in its corner", function()
+  local photo = L.Defaults().photo
+  local stampSizes = {
+    name = { w = 120, h = 18 }, guild = { w = 140, h = 13 }, zone = { w = 130, h = 13 }, date = { w = 90, h = 12 },
+  }
+  local p = L.Positions(L.StampSettings(photo), 1000, 800, stampSizes, false, L.STAMP_ORDER)
+  for _, id in ipairs(L.STAMP_ORDER) do near(p[id].left + stampSizes[id].w, 1000 - L.PAD.side, id .. " right edge") end
+  near(p.guild.top, p.name.top + 18 + L.PAD.line)
+  near(p.zone.top, p.guild.top + 13 + L.PAD.line)
+  near(p.date.top + 12, 800 - L.PAD.edge) -- no letterbox bars in a photo
+end)
+
+test("the stamp follows its corner and skips unticked parts", function()
+  local photo = L.Defaults().photo
+  photo.stamp.corner = "TL"
+  photo.stamp.guild = false
+  local stampSizes = { name = { w = 120, h = 18 }, guild = { w = 140, h = 13 }, zone = { w = 130, h = 13 } }
+  local p = L.Positions(L.StampSettings(photo), 1000, 800, stampSizes, false, L.STAMP_ORDER)
+  near(p.name.left, L.PAD.side)
+  near(p.name.top, L.PAD.edge)
+  eq(p.guild, nil)
+  near(p.zone.top, p.name.top + 18 + L.PAD.line)
+  eq(p.date, nil) -- no size: no text
+end)
+
+test("every stamp corner is a valid anchor", function()
+  for _, c in ipairs(L.STAMP_CORNERS) do
+    local photo = L.Defaults().photo
+    photo.stamp.corner = c
+    eq(L.StampSettings(photo).elements.name.anchor, c)
+  end
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

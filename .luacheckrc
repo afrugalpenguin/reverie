@@ -13,5 +13,5 @@ read_globals = {
   "InterfaceOptionsFrame", "InterfaceOptions_AddCategory", "IsFlying", "LEVEL",
   "MoveViewLeftStart", "MoveViewLeftStop", "Settings", "SettingsPanel", "UIParent",
   "UnitClass", "UnitIsAFK", "UnitLevel", "UnitName", "UnitOnTaxi", "UnitRace",
-  "WorldFrame", "strtrim",
+  "WorldFrame", "date", "strtrim",
 }

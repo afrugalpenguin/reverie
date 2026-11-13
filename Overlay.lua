@@ -72,8 +72,12 @@ local function HideOutline(handle)
   for _, t in ipairs(handle.dashes or {}) do t:Hide() end
 end
 
-function Overlay.New(root)
+-- spec (optional): { order = ids, meta = id -> style } for a different set of text lines,
+-- such as the photo stamp. Defaults to the overlay's text elements.
+function Overlay.New(root, spec)
   local self = setmetatable({ root = root, strings = {}, handles = {} }, Overlay)
+  self.order = spec and spec.order or Layout.ORDER
+  self.meta = spec and spec.meta or Layout.META
 
   self.topBar, self.topFade = Bar(root, "TOP", "BOTTOM")
   self.bottomBar, self.bottomFade = Bar(root, "BOTTOM", "TOP")
@@ -84,8 +88,8 @@ function Overlay.New(root)
 
   -- Each element is a handle frame holding its text. The handle is what gets positioned,
   -- and in unlock mode it's what the mouse drags.
-  for _, id in ipairs(Layout.ORDER) do
-    local meta = Layout.META[id]
+  for _, id in ipairs(self.order) do
+    local meta = self.meta[id]
     local handle = CreateFrame("Frame", nil, self.text)
     handle.id = id
     handle:SetMovable(true)
@@ -159,10 +163,10 @@ function Overlay:Apply(settings, texts, selected, unlock)
 
   -- Measure every element that has text; the layout skips the rest.
   local sizes = {}
-  for _, id in ipairs(Layout.ORDER) do
+  for _, id in ipairs(self.order) do
     local text = texts[id]
     if text and text ~= "" then
-      if Layout.META[id].caps then text = string.upper(text) end
+      if self.meta[id].caps then text = string.upper(text) end
       local fs = self.strings[id]
       self.handles[id]:Show() -- measure while shown; it's hidden again below if it isn't placed
       fs:SetText(text)
@@ -170,9 +174,9 @@ function Overlay:Apply(settings, texts, selected, unlock)
     end
   end
 
-  local positions = Layout.Positions(settings, w, h, sizes, unlock ~= nil)
+  local positions = Layout.Positions(settings, w, h, sizes, unlock ~= nil, self.order)
 
-  for _, id in ipairs(Layout.ORDER) do
+  for _, id in ipairs(self.order) do
     local handle, p = self.handles[id], positions[id]
     handle:ClearAllPoints()
     if p then
@@ -187,7 +191,7 @@ function Overlay:Apply(settings, texts, selected, unlock)
     handle.onDrop = unlock and unlock.onDrop or nil
     handle:EnableMouse(unlock ~= nil)
     if unlock and p then
-      local label = Layout.META[id].label
+      local label = self.meta[id].label
       handle.label:SetText(settings.elements[id].show and label or (label .. " (off)"))
       handle.label:Show()
       DrawOutline(handle)
