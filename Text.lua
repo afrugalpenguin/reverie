@@ -6,8 +6,6 @@ local state = ns.state
 local Text = {}
 ns.Text = Text
 
-local FADE_DELAY = 10 -- seconds before text fades, when "Fade text after 10s" is on
-
 -- Text for each element. sample = true fills empty ones with placeholders (options preview
 -- and unlock mode), so every element has something to show.
 function ns.Texts(sample)
@@ -34,7 +32,7 @@ function ns.Texts(sample)
   }
 end
 
-local live -- { frame, renderer, fadeAnim, fadeTimer }
+local live -- { frame, renderer, fadeAnim, wakeAnim, fade }
 
 -- The overlay is a WorldFrame child so it stays up while UIParent is hidden. Scale it so its
 -- units match UIParent's, keeping text the same size at any UI scale.
@@ -76,7 +74,15 @@ function Text.Create()
   alpha:SetDuration(1.5)
   anim:SetToFinalAlpha(true)
 
-  live = { frame = f, renderer = renderer, fadeAnim = anim }
+  -- Faded text comes back quickly when the mouse moves.
+  local wake = renderer.text:CreateAnimationGroup()
+  local back = wake:CreateAnimation("Alpha")
+  back:SetFromAlpha(0)
+  back:SetToAlpha(1)
+  back:SetDuration(0.3)
+  wake:SetToFinalAlpha(true)
+
+  live = { frame = f, renderer = renderer, fadeAnim = anim, wakeAnim = wake }
   Text.live = live
   Text.Rescale()
 end
@@ -93,18 +99,38 @@ function Text.Hide()
   live.frame:Hide()
 end
 
+-- Fades the text after Layout.FADE_DELAY seconds without mouse movement; moving the mouse brings
+-- it back and restarts the delay. The cursor is polled rather than caught with mouse events, so
+-- the overlay never takes clicks from the world. The camera orbit doesn't move the cursor.
+local function FadeUpdate()
+  local x, y = GetCursorPosition()
+  local action = Layout.FadeStep(live.fade, x, y, GetTime())
+  if action == "fade" then
+    live.wakeAnim:Stop()
+    live.fadeAnim:Play()
+  elseif action == "show" then
+    if live.fadeAnim:IsPlaying() then -- caught part-way: straight back
+      live.fadeAnim:Stop()
+      live.renderer.text:SetAlpha(1)
+    else
+      live.wakeAnim:Play()
+    end
+  end
+end
+
 function Text.StartFade()
   Text.StopFade()
-  live.fadeTimer = C_Timer.NewTimer(FADE_DELAY, function() live.fadeAnim:Play() end)
+  local x, y = GetCursorPosition()
+  live.fade = Layout.NewFade(GetTime(), x, y)
+  live.frame:SetScript("OnUpdate", FadeUpdate)
 end
 
 function Text.StopFade()
   if not live then return end
-  if live.fadeTimer then
-    live.fadeTimer:Cancel()
-    live.fadeTimer = nil
-  end
+  live.frame:SetScript("OnUpdate", nil)
+  live.fade = nil
   live.fadeAnim:Stop()
+  live.wakeAnim:Stop()
   live.renderer.text:SetAlpha(1)
 end
 

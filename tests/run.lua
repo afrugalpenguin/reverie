@@ -919,5 +919,36 @@ test("ToastText names the trigger", function()
     "Boss defeated: Screenshot failed: entered combat")
 end)
 
+-- Text fade and mouse wake (#19) -------------------------------------------------
+
+test("FadeStep fades the text after the delay with no mouse movement", function()
+  local f = L.NewFade(100, 0, 0)
+  eq(L.FadeStep(f, 0, 0, 100 + L.FADE_DELAY - 0.1), nil)
+  eq(L.FadeStep(f, 0, 0, 100 + L.FADE_DELAY), "fade")
+  eq(L.FadeStep(f, 0, 0, 100 + L.FADE_DELAY + 5), nil, "fades only once")
+end)
+
+test("FadeStep: moving the mouse brings faded text back and restarts the delay", function()
+  local f = L.NewFade(100, 0, 0)
+  eq(L.FadeStep(f, 0, 0, 100 + L.FADE_DELAY), "fade")
+  eq(L.FadeStep(f, 50, 20, 120), "show")
+  eq(L.FadeStep(f, 50, 20, 120 + L.FADE_DELAY - 0.1), nil)
+  eq(L.FadeStep(f, 50, 20, 120 + L.FADE_DELAY), "fade")
+end)
+
+test("FadeStep: moving before the fade postpones it without a show", function()
+  local f = L.NewFade(100, 0, 0)
+  eq(L.FadeStep(f, 30, 0, 105), nil)
+  eq(L.FadeStep(f, 30, 0, 100 + L.FADE_DELAY), nil, "the delay restarted at 105")
+  eq(L.FadeStep(f, 30, 0, 105 + L.FADE_DELAY), "fade")
+end)
+
+test("FadeStep ignores cursor jitter within the slop", function()
+  local f = L.NewFade(100, 10, 10)
+  eq(L.FadeStep(f, 10, 10, 100 + L.FADE_DELAY), "fade")
+  eq(L.FadeStep(f, 10 + L.CURSOR_SLOP, 10 - L.CURSOR_SLOP, 111), nil)
+  eq(L.FadeStep(f, 10 + L.CURSOR_SLOP + 1, 10, 112), "show")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

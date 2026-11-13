@@ -534,6 +534,34 @@ function Layout.FirstVisit(visited, char, zone)
   return true
 end
 
+-- Text fade ----------------------------------------------------------------------
+
+Layout.FADE_DELAY = 10 -- seconds without mouse movement before the text fades ("Fade text after 10s")
+Layout.CURSOR_SLOP = 2 -- cursor movement up to this, on either axis, is jitter and doesn't count
+
+-- Fade state for an overlay that started at `now` with the cursor at x, y.
+function Layout.NewFade(now, x, y)
+  return { since = now, x = x, y = y, faded = false }
+end
+
+-- One frame's check. Returns "fade" when the text should fade out, "show" when the mouse moved
+-- and faded text should come back, or nil. Movement restarts the delay either way.
+function Layout.FadeStep(f, x, y, now)
+  if math.abs(x - f.x) > Layout.CURSOR_SLOP or math.abs(y - f.y) > Layout.CURSOR_SLOP then
+    f.x, f.y, f.since = x, y, now
+    if f.faded then
+      f.faded = false
+      return "show"
+    end
+    return nil
+  end
+  if not f.faded and now - f.since >= Layout.FADE_DELAY then
+    f.faded = true
+    return "fade"
+  end
+  return nil
+end
+
 -- A dropped element's centre (screen units from the top-left) as clamped x/y fractions.
 function Layout.FreeFromPoint(px, py, screenW, screenH)
   if screenW <= 0 or screenH <= 0 then return 0.5, 0.5 end
