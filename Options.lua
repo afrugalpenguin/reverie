@@ -162,8 +162,9 @@ function ns.RefreshOptions()
   widgets.sliderY:SetShown(sel.free)
   widgets.sliderY.label:SetShown(sel.free)
   widgets.hint:SetShown(not sel.free)
-  SetSlider(widgets.sliderX, "Across", sel.x)
-  SetSlider(widgets.sliderY, "Down", sel.y)
+  -- Positions are saved as fractions of the screen; the sliders show them as percentages.
+  SetSlider(widgets.sliderX, "Across", math.floor(sel.x * 100 + 0.5))
+  SetSlider(widgets.sliderY, "Down", math.floor(sel.y * 100 + 0.5))
 
   for key, cb in pairs(widgets.options) do
     cb:SetChecked(ns.settings.options[key])
@@ -255,7 +256,7 @@ local function BuildLeft(parent)
 
   local function setPos(key)
     return function(v)
-      ns.settings.elements[selected][key] = v
+      ns.settings.elements[selected][key] = v / 100
       Changed()
     end
   end
