@@ -1,11 +1,3 @@
-**v0.2.0**
-
-- Unlock mode: `/reverie unlock` shows every text element with a dashed outline and its name, ready to drag anywhere. Dropping one places it freely. `/reverie lock` or Escape finishes.
-- New `/reverie text <element> on|off`, `anchor <TL..BR>` and `free` commands.
-- Free positions are saved as a share of the screen, so they survive resolution and UI scale changes. 0.1.x settings carry over automatically.
-- The away timer only shows while the AFK trigger is on.
-- Text placement is worked out by tested layout code, and the overlay now sits on the game world frame.
-
 **v0.1.1**
 
 - The camera orbit is about a third slower.
