@@ -1,3 +1,8 @@
+**v0.3.0**
+
+- "Show chat" option (on by default): while the overlay is up, a faded chat box at the bottom right shows guild, officer, whisper, party and raid messages, so you don't miss them on a long flight. Each message fades after 20 seconds.
+- The chat box is left out of photos and automatic screenshots.
+
 **v0.2.0**
 
 - Photo mode: /reverie photo or the "Take photo" key binding hides the interface, shows framing guides and a self-timer, then saves one screenshot for each shot type ticked on the new Photo tab (clean, stamped, vignetted, saturated, sepia), with optional portrait, profile or wide camera presets. Escape cancels, and everything is put back afterwards, even after a crash or reload.
