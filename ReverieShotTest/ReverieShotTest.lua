@@ -8,12 +8,28 @@
 --     callback itself errors, so the UI is never left hidden and no overlay stays up;
 --   * the cvars test restores every value it changes and reads it back to prove it.
 --
--- luacheck: globals SLASH_REVERIESHOTTEST1
--- luacheck: read globals C_CVar DEFAULT_CHAT_FRAME FlipCameraYaw Screenshot SetView debugprofilestop
+-- luacheck: globals SLASH_REVERIESHOTTEST1 ReverieShotTestLog
+-- luacheck: read globals C_CVar DEFAULT_CHAT_FRAME FlipCameraYaw Screenshot SetView debugprofilestop date
 
 local PREFIX = "|cff33ff99[RST]|r "
 
-local function out(msg) DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. msg) end
+-- /chatlog does not record AddMessage output, so every line is also kept here and saved to
+-- WTF\Account\<account>\SavedVariables\ReverieShotTest.lua on logout or /reload.
+local sessionLog = {}
+
+local function out(msg)
+  DEFAULT_CHAT_FRAME:AddMessage(PREFIX .. msg)
+  local plain = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+  sessionLog[#sessionLog + 1] = date("%H:%M:%S ") .. plain
+end
+
+local loader = CreateFrame("Frame")
+loader:RegisterEvent("ADDON_LOADED")
+loader:SetScript("OnEvent", function(self, _, name)
+  if name ~= "ReverieShotTest" then return end
+  ReverieShotTestLog = sessionLog  -- keep only this session's lines
+  self:UnregisterEvent("ADDON_LOADED")
+end)
 local function pass(msg) out("|cff00ff00PASS|r " .. msg) end
 local function fail(msg) out("|cffff3333FAIL|r " .. msg) end
 local function info(msg) out("|cffffff00INFO|r " .. msg) end

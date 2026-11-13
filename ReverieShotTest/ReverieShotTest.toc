@@ -2,5 +2,6 @@
 ## Title: Reverie Shot Test
 ## Notes: Throwaway spike harness for Reverie photo mode. Not part of Reverie. Type /rst.
 ## Version: spike
+## SavedVariables: ReverieShotTestLog
 
 ReverieShotTest.lua
