@@ -338,7 +338,7 @@ local function BuildRight(parent, preview)
   local groupW = math.floor((PREVIEW_W - 32) / 3)
   for i, group in ipairs(Layout.OPTION_GROUPS) do
     local box = Box(col, C.panel, C.border)
-    box:SetSize(groupW, 150)
+    box:SetSize(groupW, 176)
     box:SetPoint("TOPLEFT", preview, "BOTTOMLEFT", (i - 1) * (groupW + 16), -20)
     local heading = Heading(box, group.title)
     heading:SetPoint("TOPLEFT", 14, -14)

@@ -10,6 +10,7 @@ Looks.lua
 CVars.lua
 Core.lua
 Text.lua
+Chat.lua
 Camera.lua
 Triggers.lua
 Photo.lua

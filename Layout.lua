@@ -31,8 +31,8 @@ Layout.ANCHOR_NAMES = {
 Layout.OPTION_GROUPS = {
   { title = "Start automatically", keys = { "taxi", "flying", "afk" },
     labels = { "Flight paths", "Flying mount", "When AFK" } },
-  { title = "Overlay", keys = { "bars", "fade", "surname" },
-    labels = { "Letterbox bars", "Fade text after 10s", "Show surname" } },
+  { title = "Overlay", keys = { "bars", "fade", "surname", "chat" },
+    labels = { "Letterbox bars", "Fade text after 10s", "Show surname", "Show chat" } },
   { title = "Camera", keys = { "orbit", "zoom" },
     labels = { "Slow orbit", "Zoom out" } },
 }
@@ -93,7 +93,7 @@ local DEFAULTS = {
     away    = { show = true,  anchor = "TR", free = false, x = 0.85, y = 0.12 },
   },
   options = { taxi = true, flying = true, afk = true, bars = true, fade = true, surname = true,
-    orbit = true, zoom = true },
+    orbit = true, zoom = true, chat = true },
   photo = {
     types = { clean = true, stamped = true, vignetted = true, saturated = true, sepia = true },
     stamp = { name = true, guild = true, zone = true, date = true, corner = "BR" },
@@ -614,6 +614,47 @@ function Layout.DisplayName(name, surname, full)
   end
   if full then return name end
   return name:match("^(%S+)") or name
+end
+
+-- Overlay chat -------------------------------------------------------------------
+
+-- Chat events shown on the overlay, and the chat type each one is (ChatTypeInfo colours).
+Layout.CHAT_EVENTS = {
+  CHAT_MSG_GUILD = "GUILD", CHAT_MSG_OFFICER = "OFFICER",
+  CHAT_MSG_WHISPER = "WHISPER", CHAT_MSG_BN_WHISPER = "BN_WHISPER",
+  CHAT_MSG_PARTY = "PARTY", CHAT_MSG_PARTY_LEADER = "PARTY_LEADER",
+  CHAT_MSG_RAID = "RAID", CHAT_MSG_RAID_LEADER = "RAID_LEADER", CHAT_MSG_RAID_WARNING = "RAID_WARNING",
+}
+local CHAT_LABELS = {
+  GUILD = "Guild", OFFICER = "Officer", PARTY = "Party", PARTY_LEADER = "Party Leader",
+  RAID = "Raid", RAID_LEADER = "Raid Leader", RAID_WARNING = "Raid Warning",
+}
+local WHISPERS = { WHISPER = true, BN_WHISPER = true }
+
+Layout.CHAT_WIDTH = 0.32   -- share of the screen width
+Layout.CHAT_LINES = 6
+Layout.CHAT_LINE_H = 18    -- UI units per line
+Layout.CHAT_FADE_AFTER = 20 -- seconds a message stays before fading
+
+-- One chat line: "[Guild] Name: text", or "Name whispers: text". The realm is dropped.
+function Layout.ChatLine(chatType, author, text)
+  local name = type(author) == "string" and author:match("^([^%-]+)") or nil
+  if WHISPERS[chatType] then
+    return (name or "?") .. " whispers: " .. text
+  end
+  local label = "[" .. (CHAT_LABELS[chatType] or chatType) .. "] "
+  return label .. (name and (name .. ": ") or "") .. text
+end
+
+-- Where the chat box goes, in overlay units: offsets from the bottom-right corner and its size.
+function Layout.ChatRect(screenW, screenH, barsOn)
+  local barH = Layout.BarHeight(screenH, barsOn)
+  return {
+    right = Layout.PAD.side,
+    bottom = barH > 0 and (barH + Layout.PAD.bar) or Layout.PAD.edge,
+    width = math.floor(screenW * Layout.CHAT_WIDTH),
+    height = Layout.CHAT_LINES * Layout.CHAT_LINE_H,
+  }
 end
 
 -- Letterbox bar height: 11% of the screen, as in the design (79px at 720p).

@@ -24,6 +24,7 @@ function ns.Start()
   ns.Text.Show()
   ns.Text.Render()
   if o.fade then ns.Text.StartFade() end
+  ns.Chat.Start()
   ns.Camera.Begin(o)
 end
 
@@ -33,6 +34,7 @@ function ns.Stop()
   state.active = false
 
   ns.Text.StopFade()
+  ns.Chat.Stop()
   ns.Camera.End()
   ns.CVars.Restore("overlay")
   ns.Text.Hide()
