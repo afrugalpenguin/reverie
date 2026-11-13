@@ -7,10 +7,12 @@
 Layout.lua
 Overlay.lua
 Looks.lua
+CVars.lua
 Core.lua
 Text.lua
 Camera.lua
 Triggers.lua
+Photo.lua
 Slash.lua
 Options.lua
 PhotoOptions.lua

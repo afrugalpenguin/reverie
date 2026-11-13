@@ -18,8 +18,8 @@ function Triggers.Evaluate()
     state.afkSince = nil
   end
 
-  -- Unlock mode has the screen; triggers wait until /reverie lock.
-  if state.unlocked then return end
+  -- Unlock mode and a running photo have the screen; triggers wait until they finish.
+  if state.unlocked or state.photo then return end
 
   local onTaxi = UnitOnTaxi("player")
   local want = state.manual

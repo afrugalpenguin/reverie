@@ -11,6 +11,9 @@ local WHITE = "Interface\\Buttons\\WHITE8X8"
 local GUIDE_ALPHA = 0.6     -- shading outside the chosen frame (a guide, never saved)
 local VIGNETTE_MAX = 0.85   -- edge darkness at strength 100
 local VIGNETTE_DEPTH = 0.3  -- how far in from each edge the vignette reaches, as a share of the screen
+local GUIDE_LINE = { 1, 1, 1, 0.35 }    -- thirds lines
+local GUIDE_DASH = { 0.95, 0.87, 0.68, 0.9 } -- dashed frame around the crop
+local DASH, DASH_GAP, DASH_W = 10, 6, 2
 
 -- Addons can't run shaders, so colour looks are a full-screen colour with a blend mode.
 -- The spike picked MOD with a warm colour; both are first passes to tune in game.
@@ -27,7 +30,7 @@ local function Solid(root, layer, sublevel)
 end
 
 function Looks.New(root)
-  local self = setmetatable({ root = root, edges = {}, bands = {} }, Looks)
+  local self = setmetatable({ root = root, edges = {}, bands = {}, thirds = {}, dashes = {} }, Looks)
 
   self.tint = Solid(root, "ARTWORK", 0)
   self.tint:SetAllPoints()
@@ -52,6 +55,14 @@ function Looks.New(root)
     local t = Solid(root, "OVERLAY", 0)
     t:SetAlpha(GUIDE_ALPHA)
     self.bands[band] = t
+  end
+
+  -- Rule-of-thirds lines inside the crop: two across, two down.
+  for i = 1, 4 do
+    local t = root:CreateTexture(nil, "OVERLAY", nil, 1)
+    t:SetColorTexture(GUIDE_LINE[1], GUIDE_LINE[2], GUIDE_LINE[3], GUIDE_LINE[4])
+    t:Hide()
+    self.thirds[i] = t
   end
 
   -- The stamp is text, drawn by Overlay with Layout.Positions like the overlay's elements.
@@ -89,6 +100,42 @@ local function DrawVignette(self, strength, w, h)
   e.RIGHT:SetGradient("HORIZONTAL", clear, dark)
 end
 
+-- A dashed rectangle from pooled textures.
+local function DashedRect(self, r)
+  local n = 0
+  local function dash(x, y, w, h)
+    n = n + 1
+    local t = self.dashes[n]
+    if not t then
+      t = self.root:CreateTexture(nil, "OVERLAY", nil, 2)
+      t:SetColorTexture(GUIDE_DASH[1], GUIDE_DASH[2], GUIDE_DASH[3], GUIDE_DASH[4])
+      self.dashes[n] = t
+    end
+    t:ClearAllPoints()
+    t:SetPoint("TOPLEFT", x, -y)
+    t:SetSize(w, h)
+    t:Show()
+  end
+  for x = 0, r.width - 1, DASH + DASH_GAP do
+    local len = math.min(DASH, r.width - x)
+    dash(r.left + x, r.top, len, DASH_W)
+    dash(r.left + x, r.top + r.height - DASH_W, len, DASH_W)
+  end
+  for y = 0, r.height - 1, DASH + DASH_GAP do
+    local len = math.min(DASH, r.height - y)
+    dash(r.left, r.top + y, DASH_W, len)
+    dash(r.left + r.width - DASH_W, r.top + y, DASH_W, len)
+  end
+  for i = n + 1, #self.dashes do self.dashes[i]:Hide() end
+end
+
+local function Line(t, x, y, w, h)
+  t:ClearAllPoints()
+  t:SetPoint("TOPLEFT", x, -y)
+  t:SetSize(w, h)
+  t:Show()
+end
+
 local function Band(t, x, y, w, h)
   if w <= 0 or h <= 0 then
     t:Hide()
@@ -101,7 +148,8 @@ local function Band(t, x, y, w, h)
 end
 
 -- photo: settings.photo. look: one of Layout.PHOTO_TYPES, or nil for none. parts: from
--- Looks.Parts. showGuides: shade outside the chosen frame (preview only; never in a saved file).
+-- Looks.Parts. showGuides: framing guides (shading outside the chosen frame, a dashed frame
+-- around it, thirds lines); shown while framing a shot, never in a saved file.
 function Looks:Apply(photo, look, parts, showGuides)
   local w, h = self.root:GetWidth(), self.root:GetHeight()
 
@@ -126,13 +174,25 @@ function Looks:Apply(photo, look, parts, showGuides)
   end
 
   local b = self.bands
-  if showGuides and photo.frame ~= "full" then
-    local r = Layout.CropRect(photo.frame, w, h)
+  local r = showGuides and Layout.CropRect(photo.frame, w, h)
+  if r and photo.frame ~= "full" then
     Band(b.top, 0, 0, w, r.top)
     Band(b.bottom, 0, r.top + r.height, w, h - r.top - r.height)
     Band(b.left, 0, r.top, r.left, r.height)
     Band(b.right, r.left + r.width, r.top, w - r.left - r.width, r.height)
+    DashedRect(self, r)
   else
     for _, t in pairs(b) do t:Hide() end
+    for _, t in ipairs(self.dashes) do t:Hide() end
+  end
+
+  if r then
+    local th = self.thirds
+    Line(th[1], r.left + r.width / 3, r.top, 1, r.height)
+    Line(th[2], r.left + r.width * 2 / 3, r.top, 1, r.height)
+    Line(th[3], r.left, r.top + r.height / 3, r.width, 1)
+    Line(th[4], r.left, r.top + r.height * 2 / 3, r.width, 1)
+  else
+    for _, t in ipairs(self.thirds) do t:Hide() end
   end
 end

@@ -672,5 +672,152 @@ test("every stamp corner is a valid anchor", function()
   end
 end)
 
+-- Photo capture plan --------------------------------------------------------------
+
+local function ops(steps)
+  local out = {}
+  for _, s in ipairs(steps) do out[#out + 1] = s.op .. (s.type and (":" .. s.type) or "") end
+  return table.concat(out, ",")
+end
+
+local function shotsOf(steps)
+  local out = {}
+  for _, s in ipairs(steps) do
+    if s.op == "shoot" then out[#out + 1] = s.type end
+  end
+  return table.concat(out, ",")
+end
+
+local function count(steps, op)
+  local n = 0
+  for _, s in ipairs(steps) do
+    if s.op == op then n = n + 1 end
+  end
+  return n
+end
+
+test("PhotoPlan with every type shoots all five in order, spaced between shots", function()
+  local steps = L.PhotoPlan(L.Defaults().photo)
+  eq(shotsOf(steps), "clean,stamped,vignetted,saturated,sepia")
+  eq(count(steps, "space"), 4)
+  eq(count(steps, "look"), 5)
+  eq(count(steps, "clearLook"), 5)
+  eq(steps[#steps].op, "finish")
+end)
+
+test("PhotoPlan: every shot is look, wait 2 frames, shoot, clear", function()
+  local steps = L.PhotoPlan(L.Defaults().photo)
+  for i, s in ipairs(steps) do
+    if s.op == "shoot" then
+      eq(steps[i - 2].op, "look")
+      eq(steps[i - 2].type, s.type)
+      eq(steps[i - 1].op, "waitFrames")
+      eq(steps[i - 1].frames, 2)
+      eq(steps[i + 1].op, "clearLook")
+    end
+  end
+end)
+
+test("PhotoPlan setup runs before the guides, in the order cleanup reverses", function()
+  local p = L.Defaults().photo
+  p.camera, p.hideExtras = "portrait", true
+  local steps = L.PhotoPlan(p)
+  eq(ops({ unpack(steps, 1, 10) }),
+    "pauseOrbit,settle,hideUI,hideOverlay,fileFormat,camera,extras,cvars,waitFrames,guides")
+  eq(steps[2].seconds, L.PHOTO_SETTLE)
+  eq(steps[9].frames, 5)
+end)
+
+test("PhotoPlan with none ticked refuses with a message", function()
+  local p = L.Defaults().photo
+  for _, t in ipairs(L.PHOTO_TYPES) do p.types[t] = false end
+  local steps, err = L.PhotoPlan(p)
+  eq(steps, nil)
+  eq(type(err), "string")
+end)
+
+test("PhotoPlan with one ticked takes one shot and never spaces", function()
+  local p = L.Defaults().photo
+  for _, t in ipairs(L.PHOTO_TYPES) do p.types[t] = false end
+  p.types.sepia = true
+  local steps = L.PhotoPlan(p)
+  eq(shotsOf(steps), "sepia")
+  eq(count(steps, "space"), 0)
+end)
+
+test("PhotoPlan skips the camera, extras and CVar steps when they're off", function()
+  local p = L.Defaults().photo
+  p.camera, p.hideExtras, p.hidePlates, p.hideNames = "current", false, false, false
+  local steps = L.PhotoPlan(p)
+  eq(count(steps, "camera"), 0)
+  eq(count(steps, "extras"), 0)
+  eq(count(steps, "cvars"), 0)
+  eq(count(steps, "fileFormat"), 1) -- always checked; it only changes what differs
+end)
+
+test("PhotoPlan with the timer off has no guides or countdown", function()
+  local p = L.Defaults().photo
+  p.timer = 0
+  local steps = L.PhotoPlan(p)
+  eq(count(steps, "guides"), 0)
+  eq(count(steps, "countdown"), 0)
+  eq(count(steps, "hideGuides"), 0)
+  p.timer = 5
+  steps = L.PhotoPlan(p)
+  eq(count(steps, "guides"), 1)
+  eq(count(steps, "hideGuides"), 1)
+  for _, s in ipairs(steps) do
+    if s.op == "countdown" then eq(s.seconds, 5) end
+  end
+end)
+
+test("CleanupOrder undoes setup in reverse: CVars, frames, camera, file, overlay, UI, orbit", function()
+  local p = L.Defaults().photo
+  p.camera, p.hideExtras = "wide", true
+  eq(table.concat(L.CleanupOrder(L.PhotoPlan(p)), ","), "cvars,frames,camera,fileFormat,overlay,ui,orbit")
+end)
+
+test("CleanupOrder leaves out what the plan never changed", function()
+  local p = L.Defaults().photo
+  p.camera, p.hideExtras, p.hidePlates, p.hideNames = "current", false, false, false
+  eq(table.concat(L.CleanupOrder(L.PhotoPlan(p)), ","), "fileFormat,overlay,ui,orbit")
+end)
+
+test("PhotoCVars follows the hide settings and covers the spike's list", function()
+  local p = L.Defaults().photo
+  local all = L.PhotoCVars(p)
+  eq(#all, #L.PLATE_CVARS + #L.NAME_CVARS)
+  p.hidePlates = false
+  eq(table.concat(L.PhotoCVars(p), ","), table.concat(L.NAME_CVARS, ","))
+  p.hidePlates, p.hideNames = true, false
+  eq(table.concat(L.PhotoCVars(p), ","), table.concat(L.PLATE_CVARS, ","))
+  local names = {}
+  for _, n in ipairs(L.NAME_CVARS) do names[n] = true end
+  eq(names.UnitNameOwn, true)
+  eq(names.UnitNameHostleNPC, true)
+  eq(names.UnitNameEnemyTotemName, true)
+end)
+
+test("NewSecond only allows the next shot once the clock's second has changed", function()
+  eq(L.NewSecond(1000, 1000), false)
+  eq(L.NewSecond(1000, 1001), true)
+  eq(L.NewSecond(nil, 1000), true) -- first shot
+end)
+
+test("camera presets: portrait and profile turn the camera, wide zooms out", function()
+  eq(L.CAMERA_PRESETS.portrait.yaw, 180)
+  eq(L.CAMERA_PRESETS.profile.yaw, 90)
+  eq(L.CAMERA_PRESETS.wide.zoom > 0, true)
+  eq(L.CAMERA_PRESETS.current, nil)
+end)
+
+test("ToastText reports what was saved or what failed", function()
+  eq(L.ToastText({ saved = 5, total = 5 }), "Screenshot saved: 5 shots")
+  eq(L.ToastText({ saved = 1, total = 1 }), "Screenshot saved")
+  eq(L.ToastText({ saved = 3, total = 5, reason = "entered combat" }), "Saved 3 of 5 shots: entered combat")
+  eq(L.ToastText({ saved = 0, total = 5, reason = "cancelled" }), "Screenshot cancelled")
+  eq(L.ToastText({ saved = 0, total = 2, reason = "no screenshot event" }), "Screenshot failed: no screenshot event")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

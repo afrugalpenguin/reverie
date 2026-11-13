@@ -1,4 +1,4 @@
--- /reverie: options, preview, stop, unlock/lock, and per-element text settings.
+-- /reverie: options, preview, stop, photo, unlock/lock, and per-element text settings.
 local _, ns = ...
 local Layout = ns.Layout
 local state = ns.state
@@ -28,6 +28,10 @@ local function TextCommand(args)
   ns.Refresh()
 end
 
+-- Key bindings (Bindings.xml): Options > Keybindings > Reverie.
+BINDING_HEADER_REVERIE = "Reverie"
+BINDING_NAME_REVERIE_PHOTO = "Take photo"
+
 SLASH_REVERIE1 = "/reverie"
 SlashCmdList.REVERIE = function(msg)
   msg = strtrim(msg or "")
@@ -39,6 +43,8 @@ SlashCmdList.REVERIE = function(msg)
   elseif sub == "stop" then
     state.dismissed = true
     ns.Stop()
+  elseif sub == "photo" then
+    ns.Photo.Take()
   elseif sub == "unlock" then
     ns.Text.Unlock()
   elseif sub == "lock" then
