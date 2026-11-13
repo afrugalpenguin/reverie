@@ -10,6 +10,7 @@
 --
 -- luacheck: globals SLASH_REVERIESHOTTEST1 ReverieShotTestLog
 -- luacheck: read globals C_CVar DEFAULT_CHAT_FRAME FlipCameraYaw Screenshot SetView debugprofilestop date
+-- luacheck: read globals EnumerateFrames
 
 local PREFIX = "|cff33ff99[RST]|r "
 
@@ -79,6 +80,7 @@ blendTex:SetAllPoints(overlay)
 
 local restoreAll           -- forward declaration
 local restorePendingCVars  -- forward declaration, defined with the CVar helpers
+local restorePendingFrames -- forward declaration, defined with /rst world
 
 -- Wraps an async callback so an error in it restores everything instead of stranding the UI.
 local function guard(label, fn)
@@ -165,6 +167,7 @@ restoreAll = function()
   hideOverlays()
   showUI()
   if restorePendingCVars then restorePendingCVars() end
+  if restorePendingFrames then restorePendingFrames() end
   busy = nil
 end
 
@@ -520,6 +523,151 @@ local function cmdNames()
 end
 
 ---------------------------------------------------------------------------------------------
+-- /rst world: finds frames that stay visible with UIParent hidden (WorldFrame children and
+-- parentless frames, e.g. waypoint arrows), hides them for one shot, then shows them again.
+-- Nameplates are listed but left alone; the name CVars handle those.
+---------------------------------------------------------------------------------------------
+
+local OWN_FRAMES = { [frameTicker] = true, [overlay] = true, [events] = true, [loader] = true }
+
+local pendingFrames  -- { { frame = f, label = s }, ... } hidden by /rst world, not yet shown again
+
+restorePendingFrames = function()
+  if not pendingFrames then return 0, 0 end
+  local list = pendingFrames
+  pendingFrames = nil
+  local left = 0
+  for _, entry in ipairs(list) do
+    try("Show " .. entry.label, entry.frame.Show, entry.frame)
+    local ok, shown = pcall(entry.frame.IsShown, entry.frame)
+    if not (ok and shown) then
+      left = left + 1
+      fail(entry.label .. ": NOT shown again - /reload to fix")
+    end
+  end
+  return left, #list
+end
+
+local function frameName(frame)
+  local ok, name = pcall(frame.GetName, frame)
+  return (ok and name) or nil
+end
+
+local function describe(frame)
+  local okT, kind = pcall(frame.GetObjectType, frame)
+  local okP, protected = pcall(frame.IsProtected, frame)
+  local okW, w = pcall(frame.GetWidth, frame)
+  local okH, h = pcall(frame.GetHeight, frame)
+  return string.format("%s [%s%s, %.0fx%.0f]", frameName(frame) or "<anonymous>", okT and kind or "?",
+    (okP and protected) and ", PROTECTED" or "", okW and w or 0, okH and h or 0)
+end
+
+local function hasArea(frame)
+  local okW, w = pcall(frame.GetWidth, frame)
+  local okH, h = pcall(frame.GetHeight, frame)
+  return okW and okH and w * h > 0
+end
+
+local function isNamePlate(frame)
+  local name = frameName(frame)
+  return name ~= nil and name:find("^NamePlate") ~= nil
+end
+
+local function cmdWorld()
+  if not begin("world") then return end
+  if not checkCombat("world") then busy = nil return end
+
+  local targets = {}  -- { frame = f, label = s }
+  local seen = {}
+
+  -- 1. Direct children of WorldFrame.
+  local kids = packn(pcall(WorldFrame.GetChildren, WorldFrame))
+  if not kids[1] then
+    fail("WorldFrame:GetChildren(): " .. tostring(kids[2]))
+  else
+    local hiddenCount, plateCount = 0, 0
+    for i = 2, kids.n do
+      local kid = kids[i]
+      seen[kid] = true
+      local okS, shown = pcall(kid.IsShown, kid)
+      if OWN_FRAMES[kid] then  -- luacheck: ignore 542
+        -- our own overlay, never hidden
+      elseif isNamePlate(kid) then
+        plateCount = plateCount + 1
+      elseif okS and shown then
+        targets[#targets + 1] = { frame = kid, label = "WorldFrame child " .. describe(kid) }
+      else
+        hiddenCount = hiddenCount + 1
+      end
+    end
+    info("world: WorldFrame has " .. (kids.n - 1) .. " children: " .. #targets .. " shown, "
+      .. hiddenCount .. " already hidden, " .. plateCount .. " nameplates (left to the CVars)")
+  end
+
+  local tShot
+  local function finish(result)
+    disarm()
+    cancelFrames()
+    onShotEvent = nil
+    local left, total = restorePendingFrames()
+    showUI()
+    if result == "SCREENSHOT_SUCCEEDED" then
+      pass("world: SCREENSHOT_SUCCEEDED " .. ms(now() - tShot) .. " after Screenshot(). Check the file for arrows.")
+    else
+      fail("world: " .. tostring(result))
+    end
+    if left == 0 then
+      pass("world: all " .. total .. " hidden frame(s) shown again")
+    else
+      fail("world: " .. left .. " frame(s) not shown again, see lines above")
+    end
+    busy = nil
+  end
+
+  arm(5, "world timeout", function() finish("TIMEOUT - no screenshot event within 5 s of hiding the UI") end)
+  if not hideUI() then finish("could not hide UIParent") return end
+
+  -- 2. Parentless frames that are still drawn now UIParent is hidden.
+  local parentless = 0
+  local function scan()
+    local frame = EnumerateFrames()
+    while frame do
+      local okCheck, isTarget = pcall(function()
+        return not OWN_FRAMES[frame] and not seen[frame] and frame ~= WorldFrame and frame ~= UIParent
+          and frame:GetParent() == nil and frame:IsVisible() and hasArea(frame)
+      end)
+      if okCheck and isTarget then
+        parentless = parentless + 1
+        targets[#targets + 1] = { frame = frame, label = "parentless " .. describe(frame) }
+      end
+      frame = EnumerateFrames(frame)
+    end
+  end
+  if try("EnumerateFrames scan", scan) then
+    info("world: " .. parentless .. " parentless frame(s) still visible with UIParent hidden")
+  end
+
+  -- 3. Hide every target. Each is recorded before hiding so restore covers partial failures.
+  pendingFrames = {}
+  for _, target in ipairs(targets) do
+    pendingFrames[#pendingFrames + 1] = target
+    try("Hide " .. target.label, target.frame.Hide, target.frame)
+    local ok, shown = pcall(target.frame.IsShown, target.frame)
+    if ok and not shown then
+      pass("hid " .. target.label)
+    else
+      fail("could not hide " .. target.label)
+    end
+  end
+
+  afterFrames(5, "world frame wait", function()
+    onShotEvent = finish
+    tShot = now()
+    if not try("Screenshot()", Screenshot) then finish("Screenshot() call failed") end
+  end)
+end
+
+---------------------------------------------------------------------------------------------
 -- /rst blend
 ---------------------------------------------------------------------------------------------
 
@@ -591,7 +739,8 @@ end
 -- Slash command
 ---------------------------------------------------------------------------------------------
 
-local COMMANDS = { shot = cmdShot, burst = cmdBurst, cvars = cmdCvars, names = cmdNames, blend = cmdBlend, cam = cmdCam }
+local COMMANDS = { shot = cmdShot, burst = cmdBurst, cvars = cmdCvars, names = cmdNames, world = cmdWorld,
+  blend = cmdBlend, cam = cmdCam }
 
 SLASH_REVERIESHOTTEST1 = "/rst"
 SlashCmdList.REVERIESHOTTEST = function(msg)
@@ -603,7 +752,7 @@ SlashCmdList.REVERIESHOTTEST = function(msg)
   end
   local fn = COMMANDS[sub]
   if not fn then
-    info("usage: /rst shot | burst | cvars | names | blend | cam | reset")
+    info("usage: /rst shot | burst | cvars | names | world | blend | cam | reset")
     return
   end
   local ok, err = pcall(fn)
