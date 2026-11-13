@@ -1,4 +1,5 @@
--- Options window: show, anchor or free-position each text element, with a live preview.
+-- Options window: a Text tab (show, anchor or free-position each text element) and a Photo tab
+-- (PhotoOptions.lua), sharing one live preview.
 local _, ns = ...
 local Layout = ns.Layout
 
@@ -26,9 +27,12 @@ local C = {
 
 local PREVIEW_W, PREVIEW_H = 600, 338
 local SCREEN_W, SCREEN_H = 1365, 768 -- a 16:9 screen in UI units, scaled into the preview
+local TAB_H = 40                     -- height of the tab bar above both pages
 
-local frame, renderer
+local frame, renderer, textRoot, photoRoot
 local selected = "name"
+local activeTab = "text"
+local tabs, pages = {}, {}
 local widgets = { rows = {}, anchors = {}, options = {} }
 
 -- Helpers ---------------------------------------------------------------
@@ -89,15 +93,17 @@ local function Check(parent, label, onClick)
   fs:SetText(label)
   -- Clicking the label toggles the box too.
   cb:SetHitRectInsets(0, -(fs:GetStringWidth() + 8), 0, 0)
+  cb.label = fs
   cb:SetScript("OnClick", function(self) onClick(self:GetChecked() and true or false) end)
   return cb
 end
 
-local function Slider(parent, width, onChange)
+-- lo, hi: the value range (0 to 100 when omitted).
+local function Slider(parent, width, onChange, lo, hi)
   local s = CreateFrame("Slider", nil, parent)
   s:SetOrientation("HORIZONTAL")
   s:SetSize(width, 18)
-  s:SetMinMaxValues(0, 100)
+  s:SetMinMaxValues(lo or 0, hi or 100)
   s:SetValueStep(1)
   s:SetObeyStepOnDrag(true)
   local track = s:CreateTexture(nil, "BACKGROUND")
@@ -117,21 +123,41 @@ local function Slider(parent, width, onChange)
   return s
 end
 
-local function SetSlider(s, label, value)
+-- suffix: shown after the value ("%" when omitted).
+local function SetSlider(s, label, value, suffix)
   s.updating = true
   s:SetValue(value)
   s.updating = false
-  s.label:SetText(label .. " " .. value .. "%")
+  s.label:SetText(label .. " " .. value .. (suffix or "%"))
 end
 
 local function Changed()
   ns.Refresh()
 end
 
+-- Shared with the Photo tab so both pages look the same.
+ns.UI = {
+  C = C, Box = Box, Text = Text, Heading = Heading, Button = Button, SetActive = SetActive,
+  Tooltip = Tooltip, Check = Check, Slider = Slider, SetSlider = SetSlider,
+  TITLE_FONT = TITLE_FONT, WHITE = WHITE, PREVIEW_W = PREVIEW_W, PREVIEW_H = PREVIEW_H,
+}
+
 -- Refresh ---------------------------------------------------------------
 
 function ns.RefreshOptions()
   if not frame or not frame:IsShown() then return end
+
+  for key, page in pairs(pages) do
+    page:SetShown(key == activeTab)
+    SetActive(tabs[key], key == activeTab)
+  end
+  textRoot:SetShown(activeTab == "text")
+  photoRoot:SetShown(activeTab == "photo")
+  if activeTab == "photo" then
+    ns.RefreshPhotoPage()
+    return
+  end
+
   local els = ns.settings.elements
   local sel = els[selected]
 
@@ -272,15 +298,12 @@ local function BuildLeft(parent)
   widgets.hint:SetText("Elements sharing a corner stack in list order.")
 end
 
-local function BuildRight(parent)
-  local col = CreateFrame("Frame", nil, parent)
-  col:SetPoint("TOPLEFT", 370, -20)
-  col:SetPoint("BOTTOMRIGHT", -20, 20)
-
-  -- Preview: a dusk sky with the overlay drawn at screen scale, shrunk to fit.
-  local preview = CreateFrame("Frame", nil, col)
+-- Preview, shared by both tabs: a dusk sky with the overlay (Text tab) or the photo looks
+-- (Photo tab) drawn at screen scale, shrunk to fit.
+local function BuildPreview(parent)
+  local preview = CreateFrame("Frame", nil, parent)
   preview:SetSize(PREVIEW_W, PREVIEW_H)
-  preview:SetPoint("TOPLEFT")
+  preview:SetPoint("TOPLEFT", 370, -(20 + TAB_H))
   preview:SetClipsChildren(true)
   local sky = preview:CreateTexture(nil, "BACKGROUND")
   sky:SetAllPoints()
@@ -292,11 +315,24 @@ local function BuildRight(parent)
   ground:SetPoint("BOTTOMRIGHT")
   ground:SetHeight(math.floor(PREVIEW_H * 0.17))
 
-  local root = CreateFrame("Frame", nil, preview)
-  root:SetSize(SCREEN_W, SCREEN_H)
-  root:SetScale(PREVIEW_W / SCREEN_W)
-  root:SetPoint("TOPLEFT")
-  renderer = ns.Overlay.New(root)
+  local function ScreenRoot()
+    local root = CreateFrame("Frame", nil, preview)
+    root:SetSize(SCREEN_W, SCREEN_H)
+    root:SetScale(PREVIEW_W / SCREEN_W)
+    root:SetPoint("TOPLEFT")
+    return root
+  end
+  textRoot = ScreenRoot()
+  renderer = ns.Overlay.New(textRoot)
+  photoRoot = ScreenRoot()
+  photoRoot:Hide()
+  return preview
+end
+
+local function BuildRight(parent, preview)
+  local col = CreateFrame("Frame", nil, parent)
+  col:SetPoint("TOPLEFT", 370, -20)
+  col:SetPoint("BOTTOMRIGHT", -20, 20)
 
   -- Three option groups.
   local groupW = math.floor((PREVIEW_W - 32) / 3)
@@ -336,7 +372,7 @@ end
 
 local function Build()
   frame = Box(UIParent, C.bg, C.border)
-  frame:SetSize(990, 640)
+  frame:SetSize(990, 640 + TAB_H)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:SetMovable(true)
@@ -355,8 +391,27 @@ local function Build()
   _G.ReverieOptionsFrame = frame
   table.insert(UISpecialFrames, "ReverieOptionsFrame")
 
-  BuildLeft(frame)
-  BuildRight(frame)
+  -- Tabs, each with a page below the tab bar.
+  for i, key in ipairs({ "text", "photo" }) do
+    local tab = Button(frame, 110, 28, key == "text" and "Text" or "Photo", 13)
+    tab:SetPoint("TOPLEFT", 20 + (i - 1) * 118, -14)
+    tab:SetScript("OnClick", function()
+      activeTab = key
+      ns.RefreshOptions()
+    end)
+    tabs[key] = tab
+
+    local page = CreateFrame("Frame", nil, frame)
+    page:SetPoint("TOPLEFT", 0, -TAB_H)
+    page:SetPoint("BOTTOMRIGHT")
+    page:Hide()
+    pages[key] = page
+  end
+
+  local preview = BuildPreview(frame)
+  BuildLeft(pages.text)
+  BuildRight(pages.text, preview)
+  ns.BuildPhotoPage(pages.photo, photoRoot)
 end
 
 function ns.ShowOptions()
