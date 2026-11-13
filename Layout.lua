@@ -89,11 +89,13 @@ function Layout.Migrate(saved)
   local out = copy(saved)
   local version = type(out.version) == "number" and out.version or 1
 
+  -- v1 stored percentages. Only values above 1 are percentages: a downgrade to 0.1.x drops
+  -- the version key but keeps v2 fractions, and those must not be divided again.
   if version < 2 and type(out.elements) == "table" then
     for _, e in pairs(out.elements) do
       if type(e) == "table" then
-        if type(e.x) == "number" then e.x = e.x / 100 end
-        if type(e.y) == "number" then e.y = e.y / 100 end
+        if type(e.x) == "number" and e.x > 1 then e.x = e.x / 100 end
+        if type(e.y) == "number" and e.y > 1 then e.y = e.y / 100 end
       end
     end
   end

@@ -111,6 +111,36 @@ test("Migrate leaves a current save's fractions alone", function()
   near(m.elements.guild.y, 0.6)
 end)
 
+-- The same free placement saved three ways. A downgrade to 0.1.x rewrites ReverieDB without
+-- the version key but keeps v2 fractions, so a later upgrade sees "versionless" fractions.
+test("v1 percentages, versionless fractions and v2 fractions all place free elements alike", function()
+  local function freeSave(x, y, version)
+    return { version = version, elements = { guild = { show = true, free = true, x = x, y = y } } }
+  end
+  local saves = {
+    v1 = freeSave(35, 60, nil),
+    versionless = freeSave(0.35, 0.60, nil),
+    v2 = freeSave(0.35, 0.60, 2),
+  }
+  for label, saved in pairs(saves) do
+    local m = L.Merge(saved)
+    near(m.elements.guild.x, 0.35, label .. " x")
+    near(m.elements.guild.y, 0.60, label .. " y")
+    local p = L.Positions(m, 1000, 800, sizes(100, 20))
+    near(p.guild.left, 300, label .. " left")
+    near(p.guild.top, 470, label .. " top")
+  end
+end)
+
+test("Migrate is safe to run twice, even after the version key is lost", function()
+  local once = L.Migrate(v011Save())
+  once.version = nil -- what 0.1.x's Merge does on a downgrade
+  local twice = L.Migrate(once)
+  near(twice.elements.guild.x, 0.35)
+  near(twice.elements.guild.y, 0.60)
+  near(twice.elements.name.x, 0.20)
+end)
+
 test("Migrate does not change the table it is given", function()
   local saved = v011Save()
   L.Migrate(saved)
