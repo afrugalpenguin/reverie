@@ -17,6 +17,12 @@ Copy this folder into `World of Warcraft/_forever_/Interface/AddOns/Reverie`. Th
 - `/reverie` opens the options window. It's also linked from the game's Options › AddOns page.
 - `/reverie preview` shows the overlay now. Press Escape to leave it.
 - `/reverie stop` dismisses the overlay until the current trigger ends.
+- `/reverie unlock` shows every text element with a dashed outline and its name, even ones you've switched off. Drag any of them with the mouse to place it freely. `/reverie lock` (or Escape) finishes. Unlocking isn't allowed in combat.
+- `/reverie text <element> on` or `off` shows or hides an element.
+- `/reverie text <element> anchor <position>` pins an element to one of nine positions: `TL`, `TC`, `TR` (top left, middle, right), `ML`, `MC`, `MR` (middle row) or `BL`, `BC`, `BR` (bottom row).
+- `/reverie text <element> free` places an element freely, at its last free position.
+
+Elements are `name`, `guild`, `realm`, `level`, `zone`, `subzone` and `away`.
 
 In the options window you can:
 
@@ -26,4 +32,6 @@ In the options window you can:
 - turn the letterbox bars on or off, and fade the text after 10 seconds
 - turn on a slow camera orbit and zoom out
 
-Settings are saved per account in `ReverieDB`. The overlay never starts in combat, and it closes if combat begins.
+Elements pinned to the same position stack in a fixed order (name, guild, realm, level, zone, subzone, away). Top and bottom positions sit just inside the letterbox bars when they're on. Free positions are saved as a share of the screen, so they stay in place if you change resolution or UI scale. The subzone hides itself when it's empty or the same as the zone, the guild line disappears if you're not in a guild, and the away timer only appears while the AFK trigger is on.
+
+Settings are saved per account in `ReverieDB`. Settings from 0.1.x carry over automatically. The overlay never starts in combat, and it closes if combat begins.

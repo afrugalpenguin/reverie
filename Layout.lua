@@ -37,15 +37,25 @@ Layout.OPTION_GROUPS = {
     labels = { "Slow orbit", "Zoom out" } },
 }
 
+-- Saved-variables schema. v1 (Reverie 0.1.x) had no version key and stored free
+-- positions as screen percentages (0-100); v2 stores them as fractions (0-1).
+Layout.SCHEMA = 2
+
+-- Spacing in UI units: from the screen's left/right edges, from a letterbox bar,
+-- from the top/bottom edge without bars, and between stacked lines.
+Layout.PAD = { side = 60, bar = 18, edge = 24, line = 4 }
+
+-- x/y: where a free element's centre sits, as fractions of the screen.
 local DEFAULTS = {
+  version = Layout.SCHEMA,
   elements = {
-    name    = { show = true,  anchor = "BL", free = false, x = 20, y = 72 },
-    guild   = { show = true,  anchor = "BL", free = false, x = 20, y = 79 },
-    realm   = { show = false, anchor = "BL", free = false, x = 20, y = 84 },
-    level   = { show = true,  anchor = "BL", free = false, x = 20, y = 88 },
-    zone    = { show = true,  anchor = "TC", free = false, x = 50, y = 16 },
-    subzone = { show = true,  anchor = "TC", free = false, x = 50, y = 22 },
-    away    = { show = true,  anchor = "TR", free = false, x = 85, y = 12 },
+    name    = { show = true,  anchor = "BL", free = false, x = 0.20, y = 0.72 },
+    guild   = { show = true,  anchor = "BL", free = false, x = 0.20, y = 0.79 },
+    realm   = { show = false, anchor = "BL", free = false, x = 0.20, y = 0.84 },
+    level   = { show = true,  anchor = "BL", free = false, x = 0.20, y = 0.88 },
+    zone    = { show = true,  anchor = "TC", free = false, x = 0.50, y = 0.16 },
+    subzone = { show = true,  anchor = "TC", free = false, x = 0.50, y = 0.22 },
+    away    = { show = true,  anchor = "TR", free = false, x = 0.85, y = 0.12 },
   },
   options = { taxi = true, flying = true, afk = true, bars = true, fade = true, surname = true,
     orbit = true, zoom = true },
@@ -72,54 +82,151 @@ function Layout.Defaults()
   return copy(DEFAULTS)
 end
 
--- Builds settings from saved variables, filling gaps with defaults and
--- discarding anything malformed, so a hand-edited SavedVariables file can't break the overlay.
-function Layout.Merge(saved)
-  local out = Layout.Defaults()
-  if type(saved) ~= "table" then return out end
+-- Brings a save up to Layout.SCHEMA. Returns a new table (the input is left alone), or nil
+-- if there's no save. Everything it doesn't understand is carried over untouched.
+function Layout.Migrate(saved)
+  if type(saved) ~= "table" then return nil end
+  local out = copy(saved)
+  local version = type(out.version) == "number" and out.version or 1
 
-  if type(saved.elements) == "table" then
-    for id, def in pairs(out.elements) do
-      local s = saved.elements[id]
-      if type(s) == "table" then
-        if type(s.show) == "boolean" then def.show = s.show end
-        if type(s.free) == "boolean" then def.free = s.free end
-        if VALID_ANCHOR[s.anchor] then def.anchor = s.anchor end
-        if type(s.x) == "number" then def.x = clamp(s.x, 0, 100) end
-        if type(s.y) == "number" then def.y = clamp(s.y, 0, 100) end
+  if version < 2 and type(out.elements) == "table" then
+    for _, e in pairs(out.elements) do
+      if type(e) == "table" then
+        if type(e.x) == "number" then e.x = e.x / 100 end
+        if type(e.y) == "number" then e.y = e.y / 100 end
       end
     end
   end
 
-  if type(saved.options) == "table" then
-    for key in pairs(out.options) do
-      if type(saved.options[key]) == "boolean" then out.options[key] = saved.options[key] end
+  if version < Layout.SCHEMA then out.version = Layout.SCHEMA end
+  return out
+end
+
+local function position(v, default)
+  if type(v) ~= "number" or v ~= v then return default end -- v ~= v catches NaN
+  return clamp(v, 0, 1)
+end
+
+-- Builds settings from saved variables: migrates, keeps the user's values and any keys it
+-- doesn't know, replaces malformed known values with defaults, and fills gaps with defaults.
+-- A hand-edited SavedVariables file can't break the overlay.
+function Layout.Merge(saved)
+  local defaults = Layout.Defaults()
+  local out = Layout.Migrate(saved) or {}
+  out.version = type(out.version) == "number" and out.version or Layout.SCHEMA
+
+  if type(out.elements) ~= "table" then out.elements = {} end
+  for id, def in pairs(defaults.elements) do
+    local e = out.elements[id]
+    if type(e) ~= "table" then
+      e = {}
+      out.elements[id] = e
+    end
+    if type(e.show) ~= "boolean" then e.show = def.show end
+    if type(e.free) ~= "boolean" then e.free = def.free end
+    if not VALID_ANCHOR[e.anchor] then e.anchor = def.anchor end
+    e.x = position(e.x, def.x)
+    e.y = position(e.y, def.y)
+  end
+
+  if type(out.options) ~= "table" then out.options = {} end
+  for key, def in pairs(defaults.options) do
+    if type(out.options[key]) ~= "boolean" then out.options[key] = def end
+  end
+
+  return out
+end
+
+-- Where each element's text goes, as its top-left corner in screen units (y grows downward).
+--   sizes:   id -> { w, h } of the rendered text; elements with no text have no entry and are
+--            skipped, so they leave no gap.
+--   showAll: place hidden elements too (unlock mode).
+-- Anchored elements sharing an anchor stack in Layout.ORDER, aligned to that side. Top and
+-- bottom anchors sit inside the letterbox bars when they're on. Free elements are centred on
+-- their x/y fraction of the screen.
+function Layout.Positions(settings, screenW, screenH, sizes, showAll)
+  local PAD = Layout.PAD
+  local barH = Layout.BarHeight(screenH, settings.options.bars)
+  local edge = barH > 0 and (barH + PAD.bar) or PAD.edge
+
+  local out, stacks = {}, {}
+  for _, a in ipairs(Layout.ANCHORS) do stacks[a] = {} end
+
+  for _, id in ipairs(Layout.ORDER) do
+    local e, size = settings.elements[id], sizes[id]
+    if size and (e.show or showAll) then
+      if e.free then
+        out[id] = { left = e.x * screenW - size.w / 2, top = e.y * screenH - size.h / 2 }
+      else
+        table.insert(stacks[e.anchor], id)
+      end
+    end
+  end
+
+  for anchor, ids in pairs(stacks) do
+    if #ids > 0 then
+      local total = PAD.line * (#ids - 1)
+      for _, id in ipairs(ids) do total = total + sizes[id].h end
+
+      local row, col = anchor:sub(1, 1), anchor:sub(2, 2)
+      local y
+      if row == "T" then
+        y = edge
+      elseif row == "B" then
+        y = screenH - edge - total
+      else
+        y = (screenH - total) / 2
+      end
+
+      for _, id in ipairs(ids) do
+        local size = sizes[id]
+        local left
+        if col == "L" then
+          left = PAD.side
+        elseif col == "R" then
+          left = screenW - PAD.side - size.w
+        else
+          left = (screenW - size.w) / 2
+        end
+        out[id] = { left = left, top = y }
+        y = y + size.h + PAD.line
+      end
     end
   end
 
   return out
 end
 
--- anchor -> ordered list of element ids shown there (free-positioned ones excluded).
-function Layout.Cells(settings)
-  local cells = {}
-  for _, a in ipairs(Layout.ANCHORS) do cells[a] = {} end
-  for _, id in ipairs(Layout.ORDER) do
-    local e = settings.elements[id]
-    if e.show and not e.free then
-      table.insert(cells[e.anchor], id)
-    end
-  end
-  return cells
+-- A dropped element's centre (screen units from the top-left) as clamped x/y fractions.
+function Layout.FreeFromPoint(px, py, screenW, screenH)
+  if screenW <= 0 or screenH <= 0 then return 0.5, 0.5 end
+  return clamp(px / screenW, 0, 1), clamp(py / screenH, 0, 1)
 end
 
-function Layout.FreeItems(settings)
-  local list = {}
-  for _, id in ipairs(Layout.ORDER) do
-    local e = settings.elements[id]
-    if e.show and e.free then table.insert(list, id) end
+Layout.TEXT_USAGE = "/reverie text <element> on|off, /reverie text <element> anchor <TL|TC|TR|ML|MC|MR|BL|BC|BR>, "
+  .. "/reverie text <element> free. Elements: " .. table.concat(Layout.ORDER, ", ")
+
+-- Parses what follows "/reverie text". Returns { id, show | anchor | free } or nil, message.
+function Layout.ParseTextCommand(args)
+  local words = {}
+  for word in tostring(args or ""):gmatch("%S+") do words[#words + 1] = word:lower() end
+  local id, verb, arg = words[1], words[2], words[3]
+
+  if not id then return nil, Layout.TEXT_USAGE end
+  if not Layout.META[id] then
+    return nil, "Unknown element '" .. id .. "'. Elements: " .. table.concat(Layout.ORDER, ", ")
   end
-  return list
+
+  if #words == 2 and (verb == "on" or verb == "off") then
+    return { id = id, show = verb == "on" }
+  elseif #words == 2 and verb == "free" then
+    return { id = id, free = true }
+  elseif #words == 3 and verb == "anchor" then
+    local anchor = arg:upper()
+    if VALID_ANCHOR[anchor] then return { id = id, anchor = anchor } end
+    return nil, "Anchor must be one of " .. table.concat(Layout.ANCHORS, ", ")
+  end
+  return nil, Layout.TEXT_USAGE
 end
 
 function Layout.FormatAway(seconds)
