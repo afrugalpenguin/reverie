@@ -1,0 +1,6 @@
+## Interface: 16001
+## Title: Reverie Shot Test
+## Notes: Throwaway spike harness for Reverie photo mode. Not part of Reverie. Type /rst.
+## Version: spike
+
+ReverieShotTest.lua
