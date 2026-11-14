@@ -1062,21 +1062,20 @@ test("BindingKey: a modifier on its own is not a binding yet", function()
 end)
 
 test("KeyDecision: a free key binds straight away", function()
-  eq(L.KeyDecision("F12", "", nil), "bind")
-  eq(L.KeyDecision("F12", nil, nil), "bind")
+  eq(L.KeyDecision(""), "bind")
+  eq(L.KeyDecision(nil), "bind")
 end)
 
 test("KeyDecision: a key that's already the photo key binds straight away", function()
-  eq(L.KeyDecision("F12", "REVERIE_PHOTO", nil), "bind")
+  eq(L.KeyDecision("REVERIE_PHOTO"), "bind")
 end)
 
-test("KeyDecision: a key that does something else asks first", function()
-  eq(L.KeyDecision("/", "OPENCHATSLASH", nil), "confirm")
-  eq(L.KeyDecision("ENTER", "OPENCHAT", "/"), "confirm", "a different key starts a new question")
-end)
-
-test("KeyDecision: pressing the same key again confirms", function()
-  eq(L.KeyDecision("/", "OPENCHATSLASH", "/"), "bind")
+-- Issue #44: a player pressing A twice to strafe lost Strafe Left. Every press of an in-use key
+-- only asks; the click on the button (PhotoOptions.lua) is what replaces it.
+test("KeyDecision: an in-use key asks on every press", function()
+  eq(L.KeyDecision("OPENCHATSLASH"), "confirm")
+  eq(L.KeyDecision("STRAFELEFT"), "confirm")
+  eq(L.KeyDecision("STRAFELEFT", "STRAFELEFT"), "confirm", "the old pending argument can't confirm")
 end)
 
 -- Onboarding tour -----------------------------------------------------------------
