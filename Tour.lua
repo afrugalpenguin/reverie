@@ -4,6 +4,7 @@
 -- interface (it can never end up in a photo). When the interface comes back, a step that was
 -- waiting on its action moves on to its "done" text.
 local _, ns = ...
+local Layout = ns.Layout
 
 local Tour = {}
 ns.Tour = Tour
@@ -22,6 +23,7 @@ local STEPS = {
     action = "Show me",
     run = function()
       ns.Preview()
+      if ns.state.active then Tour.ShowExit() end
       -- Refused (text unlocked, say): don't leave it queued to start by itself later.
       if not ns.state.active then ns.state.manual = false end
       return ns.state.active
@@ -78,9 +80,37 @@ local function Go(i)
   Render()
 end
 
+-- A "Back to the tour" button in the overlay's bottom bar, shown only for the tour's preview,
+-- so a first-time player isn't left wondering how to get out. It's a child of the overlay, so
+-- it goes when the overlay does; HideExit makes sure it isn't there next time the overlay starts.
+local exit
+
+function Tour.ShowExit()
+  local live = ns.Text.live
+  if not live then return end
+  if not exit then
+    exit = UI.Button(live.frame, 280, 30, "Back to the tour (or press Escape)", 13)
+    UI.SetActive(exit, true)
+    exit:SetScript("OnClick", function()
+      -- The same as Escape on the overlay.
+      ns.state.dismissed = true
+      ns.Stop()
+    end)
+  end
+  local barH = Layout.BarHeight(live.frame:GetHeight(), ns.settings.options.bars)
+  exit:ClearAllPoints()
+  exit:SetPoint("BOTTOM", live.frame, "BOTTOM", 0, barH > 0 and math.max(4, (barH - 30) / 2) or 40)
+  exit:Show()
+end
+
+local function HideExit()
+  if exit then exit:Hide() end
+end
+
 local function Finish()
   ns.settings.tourSeen = true
   waiting, done = false, false
+  HideExit()
   card:Hide()
 end
 
@@ -106,7 +136,7 @@ local function Create()
   body:SetSpacing(3)
 
   keyButton = UI.Button(card, 260, 26, "", 12)
-  keyButton:SetPoint("TOPLEFT", 18, -120)
+  keyButton:SetPoint("TOP", card, "TOP", 0, -120)
   ns.PhotoKeyButton(keyButton, function(text, listening)
     keyButton.label:SetText(text)
     UI.SetActive(keyButton, listening)
@@ -117,6 +147,7 @@ local function Create()
   note:SetText("Not available in combat. Try again when combat ends.")
 
   back = UI.Button(card, 80, 26, "Back", 12)
+  UI.SetActive(back, false) -- UI.Button has no colours until SetActive
   back:SetPoint("BOTTOMLEFT", 18, 16)
   back:SetScript("OnClick", function() Go(index - 1) end)
 
@@ -147,6 +178,7 @@ local function Create()
 
   -- The interface came back after the overlay or a photo: that step is done.
   card:SetScript("OnShow", function()
+    HideExit()
     if waiting then
       waiting, done = false, true
     end
