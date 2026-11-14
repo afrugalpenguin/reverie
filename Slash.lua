@@ -34,6 +34,7 @@ BINDING_HEADER_REVERIE = "Reverie"
 BINDING_NAME_REVERIE_PHOTO = "Take photo"
 
 SLASH_REVERIE1 = "/reverie"
+SLASH_REVERIE2 = "/rev" -- the short form; every subcommand works with it too
 SlashCmdList.REVERIE = function(msg)
   msg = strtrim(msg or "")
   local sub, rest = msg:match("^(%S*)%s*(.-)$")
