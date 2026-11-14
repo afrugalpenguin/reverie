@@ -23,6 +23,8 @@ The text can fade after 10 seconds without mouse movement; move the mouse and it
 
 Nameplates, other players' names and (optionally) other addons' extras such as waypoint arrows are hidden for the shot. Escape cancels. Afterwards everything comes back, including any game settings Reverie changed for the shot, even if the game crashed or reloaded part-way. A note at the top of the screen says what was saved. Screenshots go to the game's usual Screenshots folder.
 
+A photo taken while the overlay is up keeps its cinema bars and title card, at full strength even if the text had faded. The overlay's chat box is left out.
+
 Photos are never taken in combat or while the text is unlocked.
 
 ### Automatic photos

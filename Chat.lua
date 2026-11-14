@@ -2,8 +2,9 @@
 -- aren't missed on a long flight. It's Reverie's own frame copying incoming messages; the game's
 -- chat window stays where it is, hidden with the rest of the interface. Display only.
 --
--- It never appears in screenshots: it's a child of the overlay, which photo mode hides. The
--- automatic plain screenshot hides it first (Chat.BeforeShot). Any other Screenshot() call, such
+-- It never appears in screenshots: photo mode hides it for the whole photo (Chat.HideForPhoto)
+-- while keeping the rest of the overlay in the shot. The automatic plain screenshot hides it
+-- first (Chat.BeforeShot). Any other Screenshot() call, such
 -- as the game's screenshot key if it goes through Lua, hides it from a hook; whether that's in
 -- time for the captured frame needs checking in game. It comes back once the screenshot is saved.
 local _, ns = ...
@@ -102,6 +103,20 @@ local function HideForShot()
     end
   end)
   return true
+end
+
+-- Photo mode: hide the box for the whole photo. Photo mode owns it until ShowAfterPhoto, so a
+-- screenshot's save event or an earlier shot's timeout mustn't bring it back. Returns true if
+-- it was showing.
+function Chat.HideForPhoto()
+  if not (box and box:IsShown()) then return false end
+  hiddenForShot = false
+  box:Hide()
+  return true
+end
+
+function Chat.ShowAfterPhoto()
+  if box and state.active then box:Show() end
 end
 
 -- Calls fn once the box is off screen: straight away if it isn't showing, otherwise after
