@@ -1130,5 +1130,24 @@ test("ChatRectFrom gives nothing when the chat window can't be measured", functi
   eq(L.ChatRectFrom(30, 40, 400, 120, 1, 0), nil, "no overlay scale")
 end)
 
+-- Secret values ------------------------------------------------------------------
+
+-- Stands in for the client's issecretvalue: the table SECRET is "secret", anything else isn't.
+local SECRET = {}
+local function fakeIsSecret(v) return v == SECRET end
+
+test("HasSecret: plain values aren't secret, including nil and false", function()
+  eq(L.HasSecret(fakeIsSecret, true, false, nil), false)
+end)
+
+test("HasSecret: any secret argument counts, wherever it is", function()
+  eq(L.HasSecret(fakeIsSecret, SECRET, false, true), true)
+  eq(L.HasSecret(fakeIsSecret, true, nil, SECRET), true, "after a nil")
+end)
+
+test("HasSecret: a client without issecretvalue has no secrets", function()
+  eq(L.HasSecret(nil, SECRET, true), false)
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
