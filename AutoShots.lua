@@ -117,6 +117,8 @@ events:SetScript("OnEvent", function(_, event, ...)
     if event == "SCREENSHOT_SUCCEEDED" then lastSecond = time() end
     if plain then AfterPlain() end
   elseif event == "PLAYER_LEVEL_UP" then
+    -- UnitLevel can still return the old level for a moment, so the stamp uses this too.
+    Auto.newLevel = tonumber((...))
     Auto.Fire("level")
   elseif event == "ACHIEVEMENT_EARNED" then
     Auto.Fire("achievement")

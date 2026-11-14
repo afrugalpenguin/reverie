@@ -67,11 +67,11 @@ local function BuildStamp(col)
 
   -- Everything that only applies when Stamped is ticked lives in one frame, shown or hidden.
   local box = CreateFrame("Frame", nil, col)
-  box:SetSize(290, 70)
+  box:SetSize(290, 90)
   At(box, col, 16, 184)
   widgets.stampBox = box
-  for i, id in ipairs(Layout.STAMP_ORDER) do
-    local cb = UI.Check(box, Layout.STAMP_META[id].label, function(on)
+  for i, id in ipairs(Layout.STAMP_OPTIONS) do
+    local cb = UI.Check(box, Layout.STAMP_LABELS[id], function(on)
       Photo().stamp[id] = on
       Changed()
     end)
