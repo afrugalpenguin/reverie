@@ -83,7 +83,8 @@ function Auto.Drain()
   local name = Layout.AUTO_TOAST[queued.trigger]
   queued = nil
   if expired then
-    print(PREFIX .. name:lower() .. " photo skipped: more than " .. Layout.AUTO_QUEUE_SECONDS .. " seconds passed.")
+    print(PREFIX .. "Skipped the " .. name:lower() .. " photo because it couldn't be taken within "
+      .. Layout.AUTO_QUEUE_SECONDS .. " seconds, for example during a long fight.")
   elseif trigger then
     RunClean(trigger)
   end

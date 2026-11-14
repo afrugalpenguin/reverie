@@ -210,7 +210,7 @@ end
 -- /reverie tour and the "Show the tour" button: start from the first step.
 function Tour.Start()
   if InCombatLockdown() then
-    print(PREFIX .. "the tour can start after combat.")
+    print(PREFIX .. "The tour can't start during combat. Type /reverie tour when combat ends.")
     return
   end
   Create()

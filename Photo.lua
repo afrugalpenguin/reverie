@@ -39,7 +39,7 @@ local function guard(fn)
   return function(...)
     local ok, err = pcall(fn, ...)
     if not ok then
-      Say("photo error: " .. tostring(err))
+      Say("Something went wrong taking the photo: " .. tostring(err))
       Cleanup("something went wrong")
     end
   end
@@ -227,7 +227,7 @@ end
 local UNDO = {
   cvars = function(r)
     local failed = ns.CVars.Restore("photoNames")
-    if #failed > 0 then r.problems[#r.problems + 1] = "couldn't restore " .. table.concat(failed, ", ") end
+    if #failed > 0 then r.problems[#r.problems + 1] = "these game settings couldn't be put back: " .. table.concat(failed, ", ") end
   end,
   frames = function(r)
     for _, f in ipairs(r.hiddenFrames) do try(f.Show, f) end
@@ -235,7 +235,7 @@ local UNDO = {
   camera = function() ns.Camera.ClearPreset() end,
   fileFormat = function(r)
     local failed = ns.CVars.Restore("photoFile")
-    if #failed > 0 then r.problems[#r.problems + 1] = "couldn't restore " .. table.concat(failed, ", ") end
+    if #failed > 0 then r.problems[#r.problems + 1] = "these game settings couldn't be put back: " .. table.concat(failed, ", ") end
   end,
   overlay = function(r)
     -- Only if the cinematic overlay is still up. The fade starts over, so the text stays a while.
@@ -273,12 +273,12 @@ Cleanup = function(reason)
   for _, key in ipairs(r.cleanup) do
     if r.done[key] then
       local ok, err = try(UNDO[key], r)
-      if not ok then r.problems[#r.problems + 1] = key .. ": " .. err end
+      if not ok then r.problems[#r.problems + 1] = "something couldn't be put back (" .. key .. ": " .. err .. ")" end
     end
   end
   state.photo = false
 
-  for _, problem in ipairs(r.problems) do Say(problem .. ". It will be tried again at your next login.") end
+  for _, problem in ipairs(r.problems) do Say("After the photo, " .. problem .. ". Reverie will try again next time you log in.") end
   ShowToast(Layout.ToastText({ saved = r.saved, total = r.total, reason = reason, trigger = r.trigger }))
 
   -- An automatic shot may have queued up while this one ran.
@@ -332,7 +332,7 @@ local STEPS = {
   camera = function(r, step)
     r.done.camera = true
     local ok, err = try(ns.Camera.ApplyPreset, Layout.CAMERA_PRESETS[step.preset])
-    if not ok then Say("camera preset failed: " .. err) end
+    if not ok then Say("Couldn't move the camera for the photo: " .. err) end
     Next()
   end,
 
@@ -448,11 +448,11 @@ function Photo.IsRunning() return run ~= nil end
 function Photo.Take(opts)
   if run then return end -- a second press while a photo is in progress does nothing
   if InCombatLockdown() then
-    Say("can't take a photo in combat.")
+    Say("Photos can't be taken during combat.")
     return
   end
   if state.unlocked then
-    Say("can't take a photo while the text is unlocked. /reverie lock first.")
+    Say("Photos can't be taken while the text is unlocked for moving. Type /reverie lock first.")
     return
   end
   if not ns.settings then return end
