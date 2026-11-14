@@ -48,6 +48,11 @@ local card, counter, title, body, note, keyButton, back, skip, action
 local index = 1
 local waiting = false -- the step's action started; it's done when the interface comes back
 local done = false    -- the step's action has finished, so it shows doneBody and Next
+-- Set from PLAYER_REGEN_DISABLED, which fires just before combat lockdown starts, so
+-- InCombatLockdown() alone would still be false when the card redraws for it.
+local inCombat = false
+
+local function InCombat() return inCombat or InCombatLockdown() end
 
 local function Render()
   local s = STEPS[index]
@@ -60,7 +65,7 @@ local function Render()
 
   local pending = s.run and not done
   action.label:SetText(pending and s.action or s.next or "Next")
-  local blocked = pending and InCombatLockdown()
+  local blocked = pending and InCombat()
   action:SetEnabled(not blocked)
   action:SetAlpha(blocked and 0.5 or 1)
   note:SetShown(blocked and true or false)
@@ -107,7 +112,7 @@ local function Create()
 
   note = UI.Text(card, 11, C.muted)
   note:SetPoint("BOTTOMLEFT", 18, 52)
-  note:SetText("Not in combat. Try again when combat ends.")
+  note:SetText("Not available in combat. Try again when combat ends.")
 
   back = UI.Button(card, 80, 26, "Back", 12)
   back:SetPoint("BOTTOMLEFT", 18, 16)
@@ -119,7 +124,9 @@ local function Create()
   action:SetScript("OnClick", function()
     local s = STEPS[index]
     if s.run and not done then
-      -- Not waiting if it was refused (combat, no shot types ticked): the interface never hid.
+      -- A click in combat would leave the overlay queued to start by itself when combat ends.
+      if InCombat() then return Render() end
+      -- Not waiting if it was refused (no shot types ticked, text unlocked): the interface never hid.
       waiting = s.run() and true or false
       return
     end
@@ -160,7 +167,10 @@ local function Create()
 
   card:RegisterEvent("PLAYER_REGEN_DISABLED")
   card:RegisterEvent("PLAYER_REGEN_ENABLED")
-  card:SetScript("OnEvent", Render)
+  card:SetScript("OnEvent", function(_, event)
+    inCombat = event == "PLAYER_REGEN_DISABLED"
+    Render()
+  end)
 end
 
 -- /reverie tour and the "Show the tour" button: start from the first step.
