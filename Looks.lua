@@ -77,9 +77,14 @@ end
 -- Raw stamp parts for the player, for Layout.StampTexts. sample = true fills a missing guild.
 function Looks.Parts(sample)
   local guild = GetGuildInfo("player")
+  -- Levels only go up, so a just-announced level beats a UnitLevel that hasn't caught up.
+  local level = math.max(UnitLevel("player") or 0, ns.Auto and ns.Auto.newLevel or 0)
+  local race = strtrim((UnitRace("player") or "") .. " " .. (UnitClass("player") or ""))
   return {
     name = Layout.DisplayName(GetUnitName("player", true), nil, ns.settings.options.surname),
     guild = guild or (sample and "Guild" or ""),
+    level = level > 0 and (LEVEL .. " " .. level) or "",
+    race = race,
     zone = GetZoneText() or "",
     date = date("%d %b %Y"),
   }

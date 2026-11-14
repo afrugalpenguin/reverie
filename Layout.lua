@@ -46,12 +46,20 @@ Layout.PHOTO_TYPE_NAMES = {
 }
 
 -- The stamp's lines, drawn by Overlay like the text elements, stacked in this order.
-Layout.STAMP_ORDER = { "name", "guild", "zone", "date" }
+-- Stamp lines, top to bottom. The level line holds the level, race and class, each ticked
+-- separately (STAMP_OPTIONS).
+Layout.STAMP_ORDER = { "name", "guild", "level", "zone", "date" }
 Layout.STAMP_META = {
   name  = { label = "Name",  font = "title", size = 22, color = { 1.00, 0.96, 0.86 } },
   guild = { label = "Guild", font = "body",  size = 13, color = { 0.65, 0.94, 0.63 } },
+  level = { label = "Level", font = "body",  size = 13, color = { 0.93, 0.93, 0.93 } },
   zone  = { label = "Zone",  font = "body",  size = 13, color = { 1.00, 0.91, 0.82 }, caps = true },
   date  = { label = "Date",  font = "body",  size = 12, color = { 0.85, 0.82, 0.76 } },
+}
+-- Stamp tickboxes on the Photo tab, in order. "race" adds race and class to the level line.
+Layout.STAMP_OPTIONS = { "name", "guild", "level", "race", "zone", "date" }
+Layout.STAMP_LABELS = {
+  name = "Name", guild = "Guild", level = "Level", race = "Race, class", zone = "Zone", date = "Date",
 }
 Layout.STAMP_CORNERS = { "TL", "TR", "BL", "BR" }
 
@@ -96,7 +104,7 @@ local DEFAULTS = {
     orbit = true, zoom = true, chat = true },
   photo = {
     types = { clean = true, stamped = true, vignetted = true, saturated = true, sepia = true },
-    stamp = { name = true, guild = true, zone = true, date = true, corner = "BR" },
+    stamp = { name = true, guild = true, level = true, race = true, zone = true, date = true, corner = "BR" },
     vignette = 60,      -- strength, 0 to 100
     frame = "film",     -- crop guide only; the saved file is always the full screen
     camera = "current",
@@ -349,16 +357,25 @@ function Layout.CropRect(frame, screenW, screenH)
   return { left = 0, top = (screenH - height) / 2, width = screenW, height = height }
 end
 
+-- A stamp part's text if it's ticked and not empty, else nil.
+local function Ticked(stamp, parts, id)
+  local v = parts[id]
+  return stamp[id] and type(v) == "string" and v ~= "" and v or nil
+end
+
 -- Stamp line text for each Layout.STAMP_ORDER id. parts: id -> raw string (guild without
--- brackets). Unticked or empty parts give "", which the layout skips.
+-- brackets; level as "Level 42"; race as "Night Elf Hunter"). Unticked or empty parts give "",
+-- which the layout skips.
 function Layout.StampTexts(stamp, parts)
   local out = {}
   for _, id in ipairs(Layout.STAMP_ORDER) do
-    local v = parts[id]
-    if stamp[id] and type(v) == "string" and v ~= "" then
-      out[id] = id == "guild" and ("<" .. v .. ">") or v
+    if id == "level" then
+      -- "Level 42", "Night Elf Hunter", or both on one line.
+      local level, race = Ticked(stamp, parts, "level"), Ticked(stamp, parts, "race")
+      out[id] = (level and race) and (level .. " " .. race) or level or race or ""
     else
-      out[id] = ""
+      local v = Ticked(stamp, parts, id)
+      out[id] = v and (id == "guild" and ("<" .. v .. ">") or v) or ""
     end
   end
   return out
@@ -369,7 +386,8 @@ end
 function Layout.StampSettings(photo)
   local elements = {}
   for _, id in ipairs(Layout.STAMP_ORDER) do
-    elements[id] = { show = photo.stamp[id] and true or false, anchor = photo.stamp.corner, free = false, x = 0, y = 0 }
+    local show = photo.stamp[id] or (id == "level" and photo.stamp.race)
+    elements[id] = { show = show and true or false, anchor = photo.stamp.corner, free = false, x = 0, y = 0 }
   end
   return { options = { bars = false }, elements = elements }
 end
