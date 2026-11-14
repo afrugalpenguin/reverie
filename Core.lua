@@ -17,6 +17,7 @@ function ns.Start()
   local o = ns.settings.options
   state.active = true
 
+  ns.Chat.Remember() -- while the game's chat window is still laid out
   UIParent:Hide()
   -- The name above the character isn't part of UIParent, so hide it separately. CVars.Set records
   -- the original first, so a crash with the overlay up is repaired at the next login.

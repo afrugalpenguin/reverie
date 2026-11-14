@@ -658,7 +658,8 @@ function Layout.ChatLine(chatType, author, text)
   return label .. (name and (name .. ": ") or "") .. text
 end
 
--- Where the chat box goes, in overlay units: offsets from the bottom-right corner and its size.
+-- Where the chat box goes when the game chat window can't be measured, in overlay units: offsets
+-- from the bottom-right corner and its size.
 function Layout.ChatRect(screenW, screenH, barsOn)
   local barH = Layout.BarHeight(screenH, barsOn)
   return {
@@ -667,6 +668,16 @@ function Layout.ChatRect(screenW, screenH, barsOn)
     width = math.floor(screenW * Layout.CHAT_WIDTH),
     height = Layout.CHAT_LINES * Layout.CHAT_LINE_H,
   }
+end
+
+-- The game chat window's place in overlay units, from its rect (left, bottom, width, height in
+-- its own units) and the two frames' effective scales. nil when it can't be measured (hidden,
+-- never laid out), so the caller falls back to ChatRect.
+function Layout.ChatRectFrom(left, bottom, width, height, fromScale, toScale)
+  if not (left and bottom and width and height and fromScale and toScale) then return nil end
+  if width <= 0 or height <= 0 or fromScale <= 0 or toScale <= 0 then return nil end
+  local k = fromScale / toScale
+  return { left = left * k, bottom = bottom * k, width = width * k, height = height * k }
 end
 
 -- Letterbox bar height: 11% of the screen, as in the design (79px at 720p).
