@@ -20,6 +20,7 @@ local FADE_SECONDS = 3   -- how long a message takes to fade out
 local SHOT_TIMEOUT = 5   -- seconds to wait for a screenshot's save event before showing again
 
 local box
+local gameRect -- where the game's chat window was, in screen pixels, when the overlay started
 local hiddenForShot = false
 local shotToken = 0 -- so only the latest screenshot's timeout can show the box again
 
@@ -38,12 +39,32 @@ local function Create()
   box:Hide()
 end
 
+-- In the game chat window's place, where players expect chat; bottom right if it couldn't be
+-- measured.
 local function Place()
   local root = ns.Text.live.frame
-  local r = Layout.ChatRect(root:GetWidth(), root:GetHeight(), ns.settings.options.bars)
   box:ClearAllPoints()
+  local g = gameRect and Layout.ChatRectFrom(gameRect.left, gameRect.bottom, gameRect.width,
+    gameRect.height, 1, root:GetEffectiveScale())
+  if g then
+    box:SetPoint("BOTTOMLEFT", root, "BOTTOMLEFT", g.left, g.bottom)
+    box:SetSize(g.width, g.height)
+    return
+  end
+  local r = Layout.ChatRect(root:GetWidth(), root:GetHeight(), ns.settings.options.bars)
   box:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", -r.right, r.bottom)
   box:SetSize(r.width, r.height)
+end
+
+-- Called by ns.Start just before it hides the interface, while the game's chat window is still
+-- laid out: remembers where it is, in screen pixels.
+function Chat.Remember()
+  local f = DEFAULT_CHAT_FRAME
+  if not f then return end
+  local okL, left, bottom, width, height = pcall(f.GetRect, f)
+  local okS, scale = pcall(f.GetEffectiveScale, f)
+  local px = okL and okS and Layout.ChatRectFrom(left, bottom, width, height, scale, 1)
+  if px then gameRect = px end -- otherwise keep the last good one
 end
 
 local events = CreateFrame("Frame")

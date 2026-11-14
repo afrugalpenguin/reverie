@@ -1107,5 +1107,28 @@ test("TourNews: only an existing save without tourSeen gets the chat line", func
   eq(L.TourNews({ version = 2, tourSeen = false }), false)
 end)
 
+-- Overlay chat in the game chat window's place ---------------------------------------
+
+test("ChatRectFrom converts the game chat window into overlay units", function()
+  -- Chat frame at scale 1.0, overlay at 0.5: everything doubles.
+  local r = L.ChatRectFrom(30, 40, 400, 120, 1.0, 0.5)
+  eq(r.left, 60)
+  eq(r.bottom, 80)
+  eq(r.width, 800)
+  eq(r.height, 240)
+end)
+
+test("ChatRectFrom with matching scales keeps the numbers", function()
+  local r = L.ChatRectFrom(30, 40, 400, 120, 0.8, 0.8)
+  near(r.left, 30)
+  near(r.height, 120)
+end)
+
+test("ChatRectFrom gives nothing when the chat window can't be measured", function()
+  eq(L.ChatRectFrom(nil, 40, 400, 120, 1, 1), nil, "no position")
+  eq(L.ChatRectFrom(30, 40, 0, 120, 1, 1), nil, "no width")
+  eq(L.ChatRectFrom(30, 40, 400, 120, 1, 0), nil, "no overlay scale")
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
