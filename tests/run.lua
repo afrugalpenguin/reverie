@@ -723,7 +723,7 @@ test("PhotoPlan setup runs before the guides, in the order cleanup reverses", fu
   p.camera, p.hideExtras = "portrait", true
   local steps = L.PhotoPlan(p)
   eq(ops({ unpack(steps, 1, 10) }),
-    "pauseOrbit,settle,hideUI,hideOverlay,fileFormat,camera,extras,cvars,waitFrames,guides")
+    "pauseOrbit,settle,hideUI,shotOverlay,fileFormat,camera,extras,cvars,waitFrames,guides")
   eq(steps[2].seconds, L.PHOTO_SETTLE)
   eq(steps[9].frames, 5)
 end)
