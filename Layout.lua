@@ -726,3 +726,14 @@ function Layout.KeyDecision(key, action, pending)
   end
   return "confirm"
 end
+
+-- True if any argument is a secret value: one the client hands addons but won't let them test
+-- (if v, and/or) in restricted moments. isSecret is the client's issecretvalue, nil on clients
+-- without secrets. Counts with select("#") so a nil argument doesn't end the check early.
+function Layout.HasSecret(isSecret, ...)
+  if not isSecret then return false end
+  for i = 1, select("#", ...) do
+    if isSecret((select(i, ...))) then return true end
+  end
+  return false
+end

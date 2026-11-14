@@ -15,7 +15,7 @@ read_globals = {
   "InterfaceOptionsFrame", "InterfaceOptions_AddCategory", "IsFlying", "LEVEL",
   "MoveViewLeftStart", "MoveViewLeftStop", "Settings", "SettingsPanel", "UIParent",
   "UnitClass", "UnitIsAFK", "UnitLevel", "UnitName", "UnitOnTaxi", "UnitRace",
-  "WorldFrame", "date", "strtrim", "DEFAULT_CHAT_FRAME",
+  "WorldFrame", "date", "strtrim", "issecretvalue", "DEFAULT_CHAT_FRAME",
   "GetBindingAction", "GetBindingKey", "GetBindingName", "GetBindingText", "GetCurrentBindingSet",
   "IsAltKeyDown", "IsControlKeyDown", "IsShiftKeyDown", "SaveBindings", "SetBinding",
 }
