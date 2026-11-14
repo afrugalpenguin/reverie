@@ -1,3 +1,7 @@
+**Unreleased**
+
+- Fixed the photo key button reacting to keys right after login when nobody had clicked it. It printed "1 is already set to…" messages and stopped those keys from working, and older versions could set the first key you pressed (such as /) as your photo key. If / no longer opens chat, set "Open Chat Slash" back to / in Options › Keybindings › Chat.
+
 **v1.0.1**
 
 - `/rev` is a shorter way to type `/reverie`, and works with all its commands (`/rev photo`, `/rev tour` and so on).

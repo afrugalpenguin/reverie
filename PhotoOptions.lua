@@ -212,7 +212,9 @@ function ns.PhotoKeyButton(b, show)
   b:SetScript("OnHide", function() if listening then Listen(false) end end)
   b:RegisterEvent("UPDATE_BINDINGS")
   b:SetScript("OnEvent", Refresh)
-  Refresh()
+  -- Setting OnKeyDown turns keyboard input on, so turn it off until a click starts listening.
+  -- Otherwise a shown button takes every key from login (issue #52).
+  Listen(false)
 end
 
 local function BuildKey(col)
