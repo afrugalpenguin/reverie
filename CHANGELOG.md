@@ -1,3 +1,8 @@
+**v0.3.1**
+
+- The "Take photo" key binding now shows up in Options › Keybindings › Reverie.
+- Set the photo key from a button at the bottom of the Photo tab, or under Options › AddOns › Reverie without opening the window: click it and press a key, Escape cancels, right-click clears.
+
 **v0.3.0**
 
 - "Show chat" option (on by default): while the overlay is up, a faded chat box at the bottom right shows guild, officer, whisper, party and raid messages, so you don't miss them on a long flight. Each message fades after 20 seconds.
