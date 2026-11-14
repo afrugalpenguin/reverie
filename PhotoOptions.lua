@@ -11,6 +11,9 @@ local HIDE = {
   { key = "hideExtras", label = "Hide addon extras", tip = "Hide other addons' on-screen extras, such as waypoint arrows" },
 }
 
+local BINDING = "REVERIE_PHOTO" -- from Bindings.xml
+local PREFIX = "|cfff2deaeReverie|r: "
+
 local UI
 local looks
 local previewLook -- the ticked type shown in the preview
@@ -99,6 +102,82 @@ local function BuildStamp(col)
   widgets.stampOff = Note(col, 20, 188, 290, "Tick Stamped above to add a stamp.")
 end
 
+-- Turns a button into the "Take photo" key setter, the same binding as Options > Keybindings.
+-- Left-click, then press a key to set it; right-click clears it; Escape cancels. Bindings can't
+-- change in combat. show(text, listening) draws the button; it redraws itself whenever the
+-- bindings change, so every key button (here and in the game's AddOns page) agrees.
+function ns.PhotoKeyButton(b, show)
+  local listening = false
+
+  local function Refresh()
+    local bound = GetBindingKey(BINDING)
+    show(listening and "Press a key (Escape cancels)"
+      or bound and ("Take photo: " .. GetBindingText(bound)) or "Take photo: not set (click to set)",
+      listening)
+  end
+
+  local function Listen(on)
+    listening = on
+    b:EnableKeyboard(on)
+    Refresh()
+  end
+
+  local function ClearKeys()
+    for _, k in ipairs({ GetBindingKey(BINDING) }) do SetBinding(k) end
+  end
+
+  b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  b:SetScript("OnClick", function(_, button)
+    if InCombatLockdown() then
+      print(PREFIX .. "can't change keys in combat.")
+      return
+    end
+    if button == "RightButton" then
+      ClearKeys()
+      SaveBindings(GetCurrentBindingSet())
+      return Listen(false)
+    end
+    Listen(not listening)
+  end)
+
+  b:SetScript("OnKeyDown", function(_, key)
+    if key == "ESCAPE" then return Listen(false) end
+    local bind = Layout.BindingKey(key, IsAltKeyDown(), IsControlKeyDown(), IsShiftKeyDown())
+    if not bind then return end -- a modifier on its own; wait for the real key
+    if InCombatLockdown() then
+      print(PREFIX .. "can't change keys in combat.")
+      return Listen(false)
+    end
+    local old = GetBindingAction(bind)
+    ClearKeys()
+    if SetBinding(bind, BINDING) then
+      SaveBindings(GetCurrentBindingSet())
+      if old ~= "" and old ~= BINDING then
+        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. (GetBindingName(old) or old) .. ".")
+      end
+    else
+      print(PREFIX .. "couldn't bind " .. GetBindingText(bind) .. ".")
+    end
+    Listen(false)
+  end)
+
+  b:SetScript("OnShow", Refresh)
+  b:SetScript("OnHide", function() if listening then Listen(false) end end)
+  b:RegisterEvent("UPDATE_BINDINGS")
+  b:SetScript("OnEvent", Refresh)
+  Refresh()
+end
+
+local function BuildKey(col)
+  local b = UI.Button(col, 290, 26, "", 12)
+  At(b, col, 20, 566)
+  UI.Tooltip(b, "Click, then press a key to take photos with it. Right-click to clear.")
+  ns.PhotoKeyButton(b, function(text, listening)
+    b.label:SetText(text)
+    UI.SetActive(b, listening)
+  end)
+end
+
 local function BuildLeft(page)
   local col = UI.Box(page, UI.C.panel, UI.C.border)
   col:SetPoint("TOPLEFT", 20, -20)
@@ -133,6 +212,9 @@ local function BuildLeft(page)
 
   Heading(col, 20, 492, "Self-timer")
   widgets.timers = Choices(col, 20, 508, Layout.TIMERS, TIMER_NAMES, 68, 4, function(v) Photo().timer = v end)
+
+  Heading(col, 20, 550, "Key")
+  BuildKey(col)
 end
 
 -- Right column, under the shared preview ---------------------------------------------------------

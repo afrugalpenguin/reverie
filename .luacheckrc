@@ -16,4 +16,6 @@ read_globals = {
   "MoveViewLeftStart", "MoveViewLeftStop", "Settings", "SettingsPanel", "UIParent",
   "UnitClass", "UnitIsAFK", "UnitLevel", "UnitName", "UnitOnTaxi", "UnitRace",
   "WorldFrame", "date", "strtrim",
+  "GetBindingAction", "GetBindingKey", "GetBindingName", "GetBindingText", "GetCurrentBindingSet",
+  "IsAltKeyDown", "IsControlKeyDown", "IsShiftKeyDown", "SaveBindings", "SetBinding",
 }

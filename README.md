@@ -14,7 +14,7 @@ The text can fade after 10 seconds without mouse movement; move the mouse and it
 
 ## Photo mode
 
-`/reverie photo`, or the "Take photo" key binding (Options › Keybindings › Reverie), takes a photo. Reverie hides the interface, shows framing guides during the self-timer countdown, then saves one screenshot for each shot type ticked on the Photo tab, about a second apart:
+`/reverie photo`, or the "Take photo" key binding (Options › Keybindings › Reverie), takes a photo. You can also set the key with the button at the bottom of the Photo tab, or under Options › AddOns › Reverie, without opening the window: click it, press a key, or right-click to clear. Reverie hides the interface, shows framing guides during the self-timer countdown, then saves one screenshot for each shot type ticked on the Photo tab, about a second apart:
 
 - **Clean**: just the view.
 - **Stamped**: with your name, guild, zone and date in a corner.
