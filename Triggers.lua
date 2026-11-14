@@ -11,7 +11,12 @@ function Triggers.Evaluate()
   if not ns.settings or not ns.Text.live then return end
   local o = ns.settings.options
 
-  local afk = UnitIsAFK("player")
+  local afk, onTaxi, flying = UnitIsAFK("player"), UnitOnTaxi("player"), IsFlying()
+  -- In restricted moments the client can return these as secret values, which an addon can't
+  -- test. Then there's no telling what's happening, so leave everything as it is until the next
+  -- poll. (Combat still closes the overlay: Core's PLAYER_REGEN_DISABLED doesn't come here.)
+  if ns.Layout.HasSecret(issecretvalue, afk, onTaxi, flying) then return end
+
   if afk and not state.afkSince then
     state.afkSince = GetTime()
   elseif not afk then
@@ -21,10 +26,9 @@ function Triggers.Evaluate()
   -- Unlock mode and a running photo have the screen; triggers wait until they finish.
   if state.unlocked or state.photo then return end
 
-  local onTaxi = UnitOnTaxi("player")
   local want = state.manual
     or (o.taxi and onTaxi)
-    or (o.flying and IsFlying() and not onTaxi)
+    or (o.flying and flying and not onTaxi)
     or (o.afk and afk)
   if InCombatLockdown() then want = false end
 
