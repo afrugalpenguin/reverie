@@ -103,24 +103,42 @@ local function BuildStamp(col)
 end
 
 -- Turns a button into the "Take photo" key setter, the same binding as Options > Keybindings.
--- Left-click, then press a key to set it; right-click clears it; Escape cancels. Bindings can't
+-- Left-click, then press a key to set it; right-click clears it; Escape cancels. A key that
+-- already does something else only replaces it after a click to confirm. While listening the
+-- button takes every key, so it gives up after LISTEN_SECONDS without one. Bindings can't
 -- change in combat. show(text, listening) draws the button; it redraws itself whenever the
 -- bindings change, so every key button (here and in the game's AddOns page) agrees.
+local LISTEN_SECONDS = 10
+
 function ns.PhotoKeyButton(b, show)
   local listening = false
-  local pending -- a key that already does something else, waiting for a second press
+  local pending -- a key that already does something else, waiting for a click to confirm
+  local wait = 0 -- bumped on every key, so only the latest timeout counts
 
   local function Refresh()
     local bound = GetBindingKey(BINDING)
-    show(pending and (GetBindingText(pending) .. " is in use: press again to replace")
+    show(pending and (GetBindingText(pending) .. " is in use: click to replace")
       or listening and "Press a key (Escape cancels)"
       or bound and ("Take photo: " .. GetBindingText(bound)) or "Take photo: not set (click to set)",
       listening)
   end
 
-  local function Listen(on)
+  local Listen
+  local function GiveUpLater()
+    wait = wait + 1
+    local mine = wait
+    C_Timer.After(LISTEN_SECONDS, function()
+      if listening and wait == mine then
+        print(PREFIX .. "stopped waiting for a photo key.")
+        Listen(false)
+      end
+    end)
+  end
+
+  function Listen(on)
     listening, pending = on, nil
     b:EnableKeyboard(on)
+    if on then GiveUpLater() end
     Refresh()
   end
 
@@ -131,6 +149,20 @@ function ns.PhotoKeyButton(b, show)
 
   local function ClearKeys()
     for _, k in ipairs({ GetBindingKey(BINDING) }) do SetBinding(k) end
+  end
+
+  local function Bind(bind)
+    local old = GetBindingAction(bind)
+    ClearKeys()
+    if SetBinding(bind, BINDING) then
+      SaveBindings(GetCurrentBindingSet())
+      if old ~= "" and old ~= BINDING then
+        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. ActionName(old) .. ".")
+      end
+    else
+      print(PREFIX .. "couldn't bind " .. GetBindingText(bind) .. ".")
+    end
+    Listen(false)
   end
 
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -144,6 +176,7 @@ function ns.PhotoKeyButton(b, show)
       SaveBindings(GetCurrentBindingSet())
       return Listen(false)
     end
+    if pending then return Bind(pending) end -- the click confirms the key in use
     Listen(not listening)
   end)
 
@@ -156,22 +189,17 @@ function ns.PhotoKeyButton(b, show)
       return Listen(false)
     end
     local old = GetBindingAction(bind)
-    if Layout.KeyDecision(bind, old, pending) == "confirm" then
+    if Layout.KeyDecision(old) == "confirm" then
+      -- Say it once per key, not on every press of a key someone is holding to walk.
+      if bind ~= pending then
+        print(PREFIX .. GetBindingText(bind) .. " is used for " .. ActionName(old)
+          .. ". Click the button to take photos with it instead, or press another key.")
+      end
       pending = bind
-      print(PREFIX .. GetBindingText(bind) .. " is used for " .. ActionName(old)
-        .. ". Press it again to take photos with it instead, or pick another key.")
+      GiveUpLater()
       return Refresh()
     end
-    ClearKeys()
-    if SetBinding(bind, BINDING) then
-      SaveBindings(GetCurrentBindingSet())
-      if old ~= "" and old ~= BINDING then
-        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. ActionName(old) .. ".")
-      end
-    else
-      print(PREFIX .. "couldn't bind " .. GetBindingText(bind) .. ".")
-    end
-    Listen(false)
+    Bind(bind)
   end)
 
   b:SetScript("OnShow", Refresh)

@@ -1,3 +1,7 @@
+**Unreleased**
+
+- Fixed the photo key button taking over a movement key: pressing A twice while it was listening made A take photos instead of strafing. A key that already does something now only changes when you click the button to confirm, and the button stops listening after 10 seconds without a key. If this happened to you, set the key back in Options › Keybindings.
+
 **v1.0.0**
 
 - Welcome tour: on your first login, a short hands-on tour shows the overlay, takes a test photo, lets you pick a photo key and points you to the options. Replay it any time with /reverie tour or from Options › AddOns › Reverie. If you already use Reverie, you get a one-line chat note instead.
