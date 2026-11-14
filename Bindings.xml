@@ -1,5 +1,5 @@
 <Bindings>
-  <Binding name="REVERIE_PHOTO" header="REVERIE">
+  <Binding name="REVERIE_PHOTO" header="REVERIE" category="BINDING_HEADER_REVERIE">
     SlashCmdList.REVERIE("photo")
   </Binding>
 </Bindings>

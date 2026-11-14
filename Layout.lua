@@ -662,3 +662,15 @@ function Layout.BarHeight(screenHeight, barsOn)
   if not barsOn then return 0 end
   return math.floor(screenHeight * 0.11 + 0.5)
 end
+
+-- Key binding capture: the binding string for a key press, with modifiers in the order the
+-- game writes them. A modifier pressed on its own isn't a binding yet, so it returns nil.
+local MODIFIER_KEYS = {
+  LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true,
+  LMETA = true, RMETA = true, UNKNOWN = true,
+}
+
+function Layout.BindingKey(key, alt, ctrl, shift)
+  if MODIFIER_KEYS[key] then return nil end
+  return (alt and "ALT-" or "") .. (ctrl and "CTRL-" or "") .. (shift and "SHIFT-" or "") .. key
+end

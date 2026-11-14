@@ -997,5 +997,23 @@ test("ChatRect sits bottom right, just above the letterbox bar", function()
   eq(L.ChatRect(1920, 1080, false).bottom, L.PAD.edge, "no bars: the screen edge padding")
 end)
 
+-- Key binding capture ------------------------------------------------------------
+
+test("BindingKey: a plain key binds as itself", function()
+  eq(L.BindingKey("P"), "P")
+end)
+
+test("BindingKey: modifiers come first, in ALT-CTRL-SHIFT order", function()
+  eq(L.BindingKey("P", true, false, false), "ALT-P")
+  eq(L.BindingKey("P", false, true, true), "CTRL-SHIFT-P")
+  eq(L.BindingKey("F12", true, true, true), "ALT-CTRL-SHIFT-F12")
+end)
+
+test("BindingKey: a modifier on its own is not a binding yet", function()
+  for _, k in ipairs({ "LSHIFT", "RSHIFT", "LCTRL", "RCTRL", "LALT", "RALT", "LMETA", "RMETA", "UNKNOWN" }) do
+    eq(L.BindingKey(k, false, false, true), nil, k)
+  end
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

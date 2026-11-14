@@ -444,6 +444,15 @@ function ns.RegisterSettingsCategory()
     ns.ShowOptions()
   end)
 
+  -- The photo key, so it can be set here without opening the window.
+  local key = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+  key:SetSize(260, 26)
+  key:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -12)
+  local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  hint:SetPoint("LEFT", key, "RIGHT", 10, 0)
+  hint:SetText("Click, then press a key. Right-click to clear.")
+  ns.PhotoKeyButton(key, function(text) key:SetText(text) end)
+
   if Settings and Settings.RegisterCanvasLayoutCategory then
     local category = Settings.RegisterCanvasLayoutCategory(panel, "Reverie")
     Settings.RegisterAddOnCategory(category)
