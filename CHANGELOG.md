@@ -1,3 +1,12 @@
+**v1.0.0**
+
+- Welcome tour: on your first login, a short hands-on tour shows the overlay, takes a test photo, lets you pick a photo key and points you to the options. Replay it any time with /reverie tour or from Options › AddOns › Reverie. If you already use Reverie, you get a one-line chat note instead.
+- Photos taken while the overlay is up keep its cinema bars and title card, at full strength even if the text had faded. The chat box is still left out.
+- The overlay's chat box now sits where your game chat window is.
+- Photo stamp: new Level and Race, class tickboxes ("Level 42 Night Elf Hunter"). Level-up photos show your new level.
+- The photo key button asks before taking a key that already does something (such as / for chat): press it again to confirm.
+- Fixed a Lua error ("secret boolean value") that could repeat while the game was restricting what addons can read.
+
 **v0.3.1**
 
 - The "Take photo" key binding now shows up in Options › Keybindings › Reverie.
