@@ -110,6 +110,9 @@ local DEFAULTS = {
   },
   -- Zones each character has been to, for "first visit to a zone": { ["Name-Realm"] = { [zone] = true } }.
   visited = {},
+  -- The onboarding tour has been finished or skipped (account-wide). Merge sets it to true for a
+  -- save from before the tour, so only fresh installs see it.
+  tourSeen = false,
 }
 
 local function copy(t)
@@ -251,7 +254,16 @@ function Layout.Merge(saved)
     end
   end
 
+  -- No save means a fresh install, which gets the tour; an older save has already learnt its way.
+  if type(out.tourSeen) ~= "boolean" then out.tourSeen = type(saved) == "table" end
+
   return out
+end
+
+-- True for a save from before the tour existed: those players get a chat line about
+-- /reverie tour instead of the tour itself. Call it with the save before Merge.
+function Layout.TourNews(saved)
+  return type(saved) == "table" and type(saved.tourSeen) ~= "boolean"
 end
 
 -- Where each element's text goes, as its top-left corner in screen units (y grows downward).
