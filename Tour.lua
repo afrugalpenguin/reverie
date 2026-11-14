@@ -39,8 +39,10 @@ local STEPS = {
     doneBody = "Photos are saved to the Screenshots folder inside your World of Warcraft "
       .. "_forever_ folder." },
   { title = "A photo key",
-    body = "Pick a key to take photos with. This is optional; you can always do it later.",
-    key = true },
+    -- Says where, rather than holding the key setter: on a card that opens by itself, a click
+    -- meant for the world could start it listening and take the player's next key (issue #50).
+    body = "You can choose a key that takes a photo. Type /reverie, open the Photo tab, and "
+      .. "click the Take photo button at the bottom. It's optional, and you can do it any time." },
   { title = "Make it yours",
     body = "Type /reverie any time to choose what shows, where it goes and what starts the "
       .. "overlay. /reverie tour shows this tour again.",
@@ -48,7 +50,7 @@ local STEPS = {
 }
 
 local UI
-local card, counter, title, body, note, keyButton, back, skip, action
+local card, counter, title, body, note, back, skip, action
 local index = 1
 local waiting = false -- the step's action started; it's done when the interface comes back
 local done = false    -- the step's action has finished, so it shows doneBody and Next
@@ -63,7 +65,6 @@ local function Render()
   counter:SetText(index .. " of " .. #STEPS)
   title:SetText(s.title)
   body:SetText(done and s.doneBody or s.body)
-  keyButton:SetShown(s.key == true)
   back:SetShown(index > 1)
   skip.label:SetText(index == #STEPS and "Open options" or "Skip tour")
 
@@ -134,13 +135,6 @@ local function Create()
   body:SetPoint("TOPLEFT", 18, -68)
   body:SetWidth(364)
   body:SetSpacing(3)
-
-  keyButton = UI.Button(card, 260, 26, "", 12)
-  keyButton:SetPoint("TOP", card, "TOP", 0, -120)
-  ns.PhotoKeyButton(keyButton, function(text, listening)
-    keyButton.label:SetText(text)
-    UI.SetActive(keyButton, listening)
-  end)
 
   note = UI.Text(card, 11, C.muted)
   note:SetPoint("BOTTOMLEFT", 18, 52)
