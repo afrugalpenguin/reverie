@@ -155,7 +155,7 @@ end
 function Text.Unlock()
   if state.unlocked then return end
   if InCombatLockdown() then
-    print("|cfff2deaeReverie|r: can't unlock in combat.")
+    print("|cfff2deaeReverie|r: Text can't be unlocked during combat.")
     return
   end
   -- Leave the overlay first so the interface is back; triggers resume after /reverie lock.
@@ -163,7 +163,8 @@ function Text.Unlock()
   state.unlocked = true
   Text.Show()
   Text.Render()
-  print("|cfff2deaeReverie|r: unlocked. Drag text to place it freely; /reverie lock or Escape when done.")
+  print("|cfff2deaeReverie|r: Text unlocked. Drag any text to move it, then type /reverie lock or "
+    .. "press Escape when you're done.")
 end
 
 function Text.Lock()
@@ -173,5 +174,5 @@ function Text.Lock()
   Text.Hide()
   -- Triggers resume on their next poll (within half a second). Not evaluated here: Lock also
   -- runs as combat starts, and the overlay must not start then.
-  print("|cfff2deaeReverie|r: locked.")
+  print("|cfff2deaeReverie|r: Text locked in place.")
 end

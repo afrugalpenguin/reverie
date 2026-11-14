@@ -16,13 +16,14 @@ local function TextCommand(args)
   local label = Layout.META[cmd.id].label
   if cmd.show ~= nil then
     e.show = cmd.show
-    print(PREFIX .. label .. (cmd.show and " shown." or " hidden."))
+    print(PREFIX .. label .. (cmd.show and " will now show on the overlay." or " is now hidden from the overlay."))
   elseif cmd.anchor then
     e.anchor, e.free = cmd.anchor, false
-    print(PREFIX .. label .. " pinned to " .. Layout.ANCHOR_NAMES[cmd.anchor]:lower() .. ".")
+    print(PREFIX .. label .. " moved to the " .. Layout.ANCHOR_NAMES[cmd.anchor]:lower() .. " of the screen.")
   elseif cmd.free then
     e.free = true
-    print(string.format("%s%s placed freely at %d%% across, %d%% down.", PREFIX, label,
+    print(string.format("%s%s can now go anywhere. It's %d%% across and %d%% down the screen; "
+      .. "type /reverie unlock to drag it.", PREFIX, label,
       math.floor(e.x * 100 + 0.5), math.floor(e.y * 100 + 0.5)))
   end
   ns.Refresh()

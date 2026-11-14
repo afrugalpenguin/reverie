@@ -129,7 +129,7 @@ function ns.PhotoKeyButton(b, show)
     local mine = wait
     C_Timer.After(LISTEN_SECONDS, function()
       if listening and wait == mine then
-        print(PREFIX .. "stopped waiting for a photo key.")
+        print(PREFIX .. "No key was pressed, so your photo key hasn't changed.")
         Listen(false)
       end
     end)
@@ -142,9 +142,10 @@ function ns.PhotoKeyButton(b, show)
     Refresh()
   end
 
-  -- What a binding action is called in Options > Keybindings, e.g. OPENCHATSLASH.
+  -- What a binding action is called in Options > Keybindings, quoted so it reads as that list's
+  -- label ("Toggle World Map Pane") rather than as part of the sentence.
   local function ActionName(action)
-    return _G["BINDING_NAME_" .. action] or action
+    return "\"" .. (_G["BINDING_NAME_" .. action] or action) .. "\""
   end
 
   local function ClearKeys()
@@ -156,11 +157,15 @@ function ns.PhotoKeyButton(b, show)
     ClearKeys()
     if SetBinding(bind, BINDING) then
       SaveBindings(GetCurrentBindingSet())
+      local key = GetBindingText(bind)
       if old ~= "" and old ~= BINDING then
-        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. ActionName(old) .. ".")
+        print(PREFIX .. key .. " now takes photos. It was set to " .. ActionName(old)
+          .. "; to put that back, go to Options > Keybindings.")
+      else
+        print(PREFIX .. key .. " now takes photos.")
       end
     else
-      print(PREFIX .. "couldn't bind " .. GetBindingText(bind) .. ".")
+      print(PREFIX .. "Couldn't make " .. GetBindingText(bind) .. " your photo key. Try a different key.")
     end
     Listen(false)
   end
@@ -168,7 +173,7 @@ function ns.PhotoKeyButton(b, show)
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   b:SetScript("OnClick", function(_, button)
     if InCombatLockdown() then
-      print(PREFIX .. "can't change keys in combat.")
+      print(PREFIX .. "Keys can't be changed during combat. Try again afterwards.")
       return
     end
     if button == "RightButton" then
@@ -185,15 +190,16 @@ function ns.PhotoKeyButton(b, show)
     local bind = Layout.BindingKey(key, IsAltKeyDown(), IsControlKeyDown(), IsShiftKeyDown())
     if not bind then return end -- a modifier on its own; wait for the real key
     if InCombatLockdown() then
-      print(PREFIX .. "can't change keys in combat.")
+      print(PREFIX .. "Keys can't be changed during combat. Try again afterwards.")
       return Listen(false)
     end
     local old = GetBindingAction(bind)
     if Layout.KeyDecision(old) == "confirm" then
       -- Say it once per key, not on every press of a key someone is holding to walk.
       if bind ~= pending then
-        print(PREFIX .. GetBindingText(bind) .. " is used for " .. ActionName(old)
-          .. ". Click the button to take photos with it instead, or press another key.")
+        print(PREFIX .. GetBindingText(bind) .. " is already set to " .. ActionName(old)
+          .. ". To take photos with it instead, click the button again. Otherwise press a "
+          .. "different key, or Escape to leave your keys as they are.")
       end
       pending = bind
       GiveUpLater()

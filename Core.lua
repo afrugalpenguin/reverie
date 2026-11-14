@@ -93,8 +93,12 @@ events:SetScript("OnEvent", function(self, event, arg1)
     -- Repair CVars left changed by a crash or reload in the middle of a photo or the overlay.
     local count, failed = ns.CVars.RestoreAll()
     if count > 0 then
-      print("|cfff2deaeReverie|r: put back " .. (count - #failed) .. " game setting(s) left changed last session."
-        .. (#failed > 0 and (" Couldn't restore: " .. table.concat(failed, ", ") .. ".") or ""))
+      -- A crash or reload mid-photo or mid-overlay; say what was fixed, and what wasn't.
+      local fixed = count - #failed
+      print("|cfff2deaeReverie|r: Your last session ended while Reverie had changed some game "
+        .. "settings. " .. (fixed == 1 and "1 setting has" or (fixed .. " settings have"))
+        .. " been put back."
+        .. (#failed > 0 and (" These couldn't be put back: " .. table.concat(failed, ", ") .. ".") or ""))
     end
     ns.Text.Create()
     if ns.RegisterSettingsCategory then ns.RegisterSettingsCategory() end
@@ -108,7 +112,8 @@ events:SetScript("OnEvent", function(self, event, arg1)
     end
     ns.Triggers.Begin()
     if tourNews then
-      print("|cfff2deaeReverie|r: new: /reverie tour shows you around.")
+      print("|cfff2deaeReverie|r: New in this version: a short tour of what Reverie does. "
+        .. "Type /reverie tour to start it.")
     end
     ns.Tour.AutoLater()
   elseif event == "PLAYER_REGEN_DISABLED" then

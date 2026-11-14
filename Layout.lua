@@ -447,7 +447,7 @@ local UNDO = {
 function Layout.PhotoPlan(photo, opts)
   local auto = opts and opts.auto
   local types = Layout.TickedTypes(photo)
-  if #types == 0 then return nil, "Tick at least one shot type on the Photo tab." end
+  if #types == 0 then return nil, "No photo taken: no shot types are ticked. Tick at least one on the Photo tab (/reverie)." end
 
   local steps = {}
   local function add(step) steps[#steps + 1] = step end
@@ -598,8 +598,12 @@ function Layout.FreeFromPoint(px, py, screenW, screenH)
   return clamp(px / screenW, 0, 1), clamp(py / screenH, 0, 1)
 end
 
-Layout.TEXT_USAGE = "/reverie text <element> on|off, /reverie text <element> anchor <TL|TC|TR|ML|MC|MR|BL|BC|BR>, "
-  .. "/reverie text <element> free. Elements: " .. table.concat(Layout.ORDER, ", ")
+local POSITIONS = table.concat(Layout.ANCHORS, ", ")
+  .. " (T = top, M = middle, B = bottom; L = left, C = centre, R = right)"
+
+Layout.TEXT_USAGE = "To change the overlay text, type /reverie text <element> on (or off), "
+  .. "/reverie text <element> anchor <position>, or /reverie text <element> free. "
+  .. "Elements: " .. table.concat(Layout.ORDER, ", ") .. ". Positions: " .. POSITIONS .. "."
 
 -- Parses what follows "/reverie text". Returns { id, show | anchor | free } or nil, message.
 function Layout.ParseTextCommand(args)
@@ -609,7 +613,8 @@ function Layout.ParseTextCommand(args)
 
   if not id then return nil, Layout.TEXT_USAGE end
   if not Layout.META[id] then
-    return nil, "Unknown element '" .. id .. "'. Elements: " .. table.concat(Layout.ORDER, ", ")
+    return nil, "There's no overlay text called '" .. id .. "'. Choose one of: "
+      .. table.concat(Layout.ORDER, ", ") .. "."
   end
 
   if #words == 2 and (verb == "on" or verb == "off") then
@@ -619,7 +624,7 @@ function Layout.ParseTextCommand(args)
   elseif #words == 3 and verb == "anchor" then
     local anchor = arg:upper()
     if VALID_ANCHOR[anchor] then return { id = id, anchor = anchor } end
-    return nil, "Anchor must be one of " .. table.concat(Layout.ANCHORS, ", ")
+    return nil, "'" .. anchor .. "' isn't a position. Use one of: " .. POSITIONS .. "."
   end
   return nil, Layout.TEXT_USAGE
 end
