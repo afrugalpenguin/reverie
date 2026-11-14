@@ -462,6 +462,8 @@ function ns.RegisterSettingsCategory()
   tour:SetPoint("TOPLEFT", key, "BOTTOMLEFT", 0, -12)
   tour:SetText("Show the tour")
   tour:SetScript("OnClick", function()
+    -- In combat the tour refuses to start, so leave the game's options open.
+    if InCombatLockdown() then return ns.Tour.Start() end
     CloseGameOptions()
     ns.Tour.Start()
   end)

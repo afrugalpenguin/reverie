@@ -22,6 +22,8 @@ local STEPS = {
     action = "Show me",
     run = function()
       ns.Preview()
+      -- Refused (text unlocked, say): don't leave it queued to start by itself later.
+      if not ns.state.active then ns.state.manual = false end
       return ns.state.active
     end,
     doneBody = "That's the overlay. From now on it starts by itself." },
