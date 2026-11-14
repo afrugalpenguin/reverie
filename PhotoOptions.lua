@@ -108,18 +108,25 @@ end
 -- bindings change, so every key button (here and in the game's AddOns page) agrees.
 function ns.PhotoKeyButton(b, show)
   local listening = false
+  local pending -- a key that already does something else, waiting for a second press
 
   local function Refresh()
     local bound = GetBindingKey(BINDING)
-    show(listening and "Press a key (Escape cancels)"
+    show(pending and (GetBindingText(pending) .. " is in use: press again to replace")
+      or listening and "Press a key (Escape cancels)"
       or bound and ("Take photo: " .. GetBindingText(bound)) or "Take photo: not set (click to set)",
       listening)
   end
 
   local function Listen(on)
-    listening = on
+    listening, pending = on, nil
     b:EnableKeyboard(on)
     Refresh()
+  end
+
+  -- What a binding action is called in Options > Keybindings, e.g. OPENCHATSLASH.
+  local function ActionName(action)
+    return _G["BINDING_NAME_" .. action] or action
   end
 
   local function ClearKeys()
@@ -149,11 +156,17 @@ function ns.PhotoKeyButton(b, show)
       return Listen(false)
     end
     local old = GetBindingAction(bind)
+    if Layout.KeyDecision(bind, old, pending) == "confirm" then
+      pending = bind
+      print(PREFIX .. GetBindingText(bind) .. " is used for " .. ActionName(old)
+        .. ". Press it again to take photos with it instead, or pick another key.")
+      return Refresh()
+    end
     ClearKeys()
     if SetBinding(bind, BINDING) then
       SaveBindings(GetCurrentBindingSet())
       if old ~= "" and old ~= BINDING then
-        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. (GetBindingName(old) or old) .. ".")
+        print(PREFIX .. GetBindingText(bind) .. " no longer does " .. ActionName(old) .. ".")
       end
     else
       print(PREFIX .. "couldn't bind " .. GetBindingText(bind) .. ".")

@@ -110,6 +110,9 @@ local DEFAULTS = {
   },
   -- Zones each character has been to, for "first visit to a zone": { ["Name-Realm"] = { [zone] = true } }.
   visited = {},
+  -- The onboarding tour has been finished or skipped (account-wide). Merge sets it to true for a
+  -- save from before the tour, so only fresh installs see it.
+  tourSeen = false,
 }
 
 local function copy(t)
@@ -251,7 +254,16 @@ function Layout.Merge(saved)
     end
   end
 
+  -- No save means a fresh install, which gets the tour; an older save has already learnt its way.
+  if type(out.tourSeen) ~= "boolean" then out.tourSeen = type(saved) == "table" end
+
   return out
+end
+
+-- True for a save from before the tour existed: those players get a chat line about
+-- /reverie tour instead of the tour itself. Call it with the save before Merge.
+function Layout.TourNews(saved)
+  return type(saved) == "table" and type(saved.tourSeen) ~= "boolean"
 end
 
 -- Where each element's text goes, as its top-left corner in screen units (y grows downward).
@@ -673,4 +685,15 @@ local MODIFIER_KEYS = {
 function Layout.BindingKey(key, alt, ctrl, shift)
   if MODIFIER_KEYS[key] then return nil end
   return (alt and "ALT-" or "") .. (ctrl and "CTRL-" or "") .. (shift and "SHIFT-" or "") .. key
+end
+
+-- Whether a key press on the photo key button binds now ("bind") or asks first ("confirm").
+-- A key that already does something else (/ opens chat, say) only binds when pressed a second
+-- time in a row, so a stray press can't take it. action is GetBindingAction(key), "" when free;
+-- pending is the key that asked last time, if any.
+function Layout.KeyDecision(key, action, pending)
+  if action == nil or action == "" or action == "REVERIE_PHOTO" or key == pending then
+    return "bind"
+  end
+  return "confirm"
 end
