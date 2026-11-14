@@ -38,6 +38,7 @@ The zone you log in to doesn't count as a first visit, and zones are remembered 
 ## Commands
 
 - `/reverie` opens the options window. It's also linked from the game's Options › AddOns page.
+- `/rev` is a shorter way to type `/reverie`, and works with everything below: `/rev photo`, `/rev tour` and so on.
 - `/reverie preview` shows the overlay now. Press Escape to leave it.
 - `/reverie stop` dismisses the overlay until the current trigger ends.
 - `/reverie photo` takes a photo.
