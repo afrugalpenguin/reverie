@@ -619,7 +619,51 @@ end)
 
 -- Stamp -------------------------------------------------------------------------
 
-local PARTS = { name = "Aldric", guild = "Lantern Watch", zone = "Elwynn Forest", date = "13 Nov 2026" }
+local PARTS = {
+  name = "Aldric", guild = "Lantern Watch", level = "Level 42", race = "Night Elf Hunter",
+  zone = "Elwynn Forest", date = "13 Nov 2026",
+}
+
+test("Stamp: level and race/class are on by default, and added to older saves", function()
+  local s = L.Defaults().photo.stamp
+  eq(s.level, true)
+  eq(s.race, true)
+  local m = L.Merge({ version = 2, photo = { stamp = { name = true, guild = false } } })
+  eq(m.photo.stamp.level, true)
+  eq(m.photo.stamp.race, true)
+  eq(m.photo.stamp.guild, false)
+end)
+
+test("Stamp: every tickbox has a label, in the order the Photo tab shows them", function()
+  eq(table.concat(L.STAMP_OPTIONS, ","), "name,guild,level,race,zone,date")
+  for _, id in ipairs(L.STAMP_OPTIONS) do
+    assert(type(L.STAMP_LABELS[id]) == "string", id .. " has no label")
+  end
+end)
+
+test("StampTexts joins level and race/class into one line", function()
+  local s = L.Defaults().photo.stamp
+  eq(L.StampTexts(s, PARTS).level, "Level 42 Night Elf Hunter")
+  s.race = false
+  eq(L.StampTexts(s, PARTS).level, "Level 42")
+  s.race, s.level = true, false
+  eq(L.StampTexts(s, PARTS).level, "Night Elf Hunter")
+  s.race = false
+  eq(L.StampTexts(s, PARTS).level, "")
+end)
+
+test("StampTexts level line skips a missing piece", function()
+  local s = L.Defaults().photo.stamp
+  eq(L.StampTexts(s, { level = "Level 42", race = "" }).level, "Level 42")
+end)
+
+test("StampSettings shows the level line when either part is ticked", function()
+  local photo = L.Defaults().photo
+  photo.stamp.level = false
+  eq(L.StampSettings(photo).elements.level.show, true, "race only")
+  photo.stamp.race = false
+  eq(L.StampSettings(photo).elements.level.show, false, "neither")
+end)
 
 test("StampTexts builds each line from its part", function()
   local t = L.StampTexts(L.Defaults().photo.stamp, PARTS)
@@ -639,15 +683,17 @@ test("StampTexts leaves unticked and missing parts empty", function()
   eq(L.StampTexts(stamp, { name = "Aldric", guild = "" }).guild, "")
 end)
 
-test("the stamp stacks name, guild, zone, date in its corner", function()
+test("the stamp stacks name, guild, level, zone, date in its corner", function()
   local photo = L.Defaults().photo
   local stampSizes = {
-    name = { w = 120, h = 18 }, guild = { w = 140, h = 13 }, zone = { w = 130, h = 13 }, date = { w = 90, h = 12 },
+    name = { w = 120, h = 18 }, guild = { w = 140, h = 13 }, level = { w = 160, h = 13 },
+    zone = { w = 130, h = 13 }, date = { w = 90, h = 12 },
   }
   local p = L.Positions(L.StampSettings(photo), 1000, 800, stampSizes, false, L.STAMP_ORDER)
   for _, id in ipairs(L.STAMP_ORDER) do near(p[id].left + stampSizes[id].w, 1000 - L.PAD.side, id .. " right edge") end
   near(p.guild.top, p.name.top + 18 + L.PAD.line)
-  near(p.zone.top, p.guild.top + 13 + L.PAD.line)
+  near(p.level.top, p.guild.top + 13 + L.PAD.line)
+  near(p.zone.top, p.level.top + 13 + L.PAD.line)
   near(p.date.top + 12, 800 - L.PAD.edge) -- no letterbox bars in a photo
 end)
 
