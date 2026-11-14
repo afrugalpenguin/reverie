@@ -413,7 +413,7 @@ end
 
 -- Setup steps and the cleanup key that undoes each. Cleanup runs these keys in reverse.
 local UNDO = {
-  pauseOrbit = "orbit", hideUI = "ui", hideOverlay = "overlay", fileFormat = "fileFormat",
+  pauseOrbit = "orbit", hideUI = "ui", shotOverlay = "overlay", fileFormat = "fileFormat",
   camera = "camera", extras = "frames", cvars = "cvars",
 }
 
@@ -421,7 +421,7 @@ local UNDO = {
 -- message when no shot type is ticked.
 -- opts.auto: an automatic shot. No self-timer, and the first shot also waits for a new second,
 -- because the automatic plain screenshot was just taken.
---   setup:  pauseOrbit, settle, hideUI, hideOverlay, fileFormat, camera*, extras*, cvars*, waitFrames
+--   setup:  pauseOrbit, settle, hideUI, shotOverlay, fileFormat, camera*, extras*, cvars*, waitFrames
 --   framing (timer on): guides, countdown, hideGuides
 --   per type: look, waitFrames, shoot, clearLook, then space before the next type
 --   finish
@@ -437,7 +437,7 @@ function Layout.PhotoPlan(photo, opts)
   add({ op = "pauseOrbit" })
   add({ op = "settle", seconds = Layout.PHOTO_SETTLE })
   add({ op = "hideUI" })
-  add({ op = "hideOverlay" })
+  add({ op = "shotOverlay" })
   add({ op = "fileFormat" })
   if Layout.CAMERA_PRESETS[photo.camera] then add({ op = "camera", preset = photo.camera }) end
   if photo.hideExtras then add({ op = "extras" }) end

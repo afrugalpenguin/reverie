@@ -87,7 +87,9 @@ local function Create()
 
   -- WorldFrame children, so they stay up while UIParent is hidden.
   root = CreateFrame("Frame", "ReveriePhoto", WorldFrame)
-  root:SetFrameStrata("FULLSCREEN_DIALOG")
+  -- Above the overlay (FULLSCREEN_DIALOG), which stays in the shot: looks tint it too, and the
+  -- guides, hint and countdown aren't covered by its bars.
+  root:SetFrameStrata("TOOLTIP")
   root:SetAllPoints(WorldFrame)
   root:Hide()
   own[root] = true
@@ -236,8 +238,10 @@ local UNDO = {
     if #failed > 0 then r.problems[#r.problems + 1] = "couldn't restore " .. table.concat(failed, ", ") end
   end,
   overlay = function(r)
-    -- Only if the cinematic overlay is still meant to be up.
-    if r.hidOverlay and state.active and ns.Text.live then ns.Text.live.frame:Show() end
+    -- Only if the cinematic overlay is still up. The fade starts over, so the text stays a while.
+    if not state.active then return end
+    if r.hidChat then ns.Chat.ShowAfterPhoto() end
+    if r.wokeText and ns.settings.options.fade then ns.Text.StartFade() end
   end,
   ui = function(r)
     if not r.hidUI then return end
@@ -305,12 +309,15 @@ local STEPS = {
     Next()
   end,
 
-  hideOverlay = function(r)
+  -- A photo taken while the overlay is up keeps its bars and text, at full strength even if
+  -- the text had faded. Only the chat box is left out.
+  shotOverlay = function(r)
     r.done.overlay = true
     local live = ns.Text.live
     if live and live.frame:IsShown() then
-      r.hidOverlay = true
-      live.frame:Hide()
+      r.hidChat = ns.Chat.HideForPhoto()
+      r.wokeText = true
+      ns.Text.StopFade()
     end
     Next()
   end,
