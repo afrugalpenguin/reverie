@@ -1015,5 +1015,51 @@ test("BindingKey: a modifier on its own is not a binding yet", function()
   end
 end)
 
+test("KeyDecision: a free key binds straight away", function()
+  eq(L.KeyDecision("F12", "", nil), "bind")
+  eq(L.KeyDecision("F12", nil, nil), "bind")
+end)
+
+test("KeyDecision: a key that's already the photo key binds straight away", function()
+  eq(L.KeyDecision("F12", "REVERIE_PHOTO", nil), "bind")
+end)
+
+test("KeyDecision: a key that does something else asks first", function()
+  eq(L.KeyDecision("/", "OPENCHATSLASH", nil), "confirm")
+  eq(L.KeyDecision("ENTER", "OPENCHAT", "/"), "confirm", "a different key starts a new question")
+end)
+
+test("KeyDecision: pressing the same key again confirms", function()
+  eq(L.KeyDecision("/", "OPENCHATSLASH", "/"), "bind")
+end)
+
+-- Onboarding tour -----------------------------------------------------------------
+
+test("Tour: a fresh install hasn't seen the tour", function()
+  eq(L.Merge(nil).tourSeen, false)
+  eq(L.Defaults().tourSeen, false)
+end)
+
+test("Tour: an existing save from before the tour counts as seen", function()
+  eq(L.Merge({ version = 2 }).tourSeen, true)
+  eq(L.Merge(v011Save()).tourSeen, true)
+end)
+
+test("Tour: a saved tourSeen is kept either way", function()
+  eq(L.Merge({ version = 2, tourSeen = false }).tourSeen, false)
+  eq(L.Merge({ version = 2, tourSeen = true }).tourSeen, true)
+end)
+
+test("Tour: a malformed tourSeen on an existing save counts as seen", function()
+  eq(L.Merge({ version = 2, tourSeen = "yes" }).tourSeen, true)
+end)
+
+test("TourNews: only an existing save without tourSeen gets the chat line", function()
+  eq(L.TourNews(nil), false, "fresh install gets the tour, not the line")
+  eq(L.TourNews({ version = 2 }), true)
+  eq(L.TourNews({ version = 2, tourSeen = true }), false)
+  eq(L.TourNews({ version = 2, tourSeen = false }), false)
+end)
+
 print(string.format("%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

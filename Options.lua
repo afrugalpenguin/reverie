@@ -429,6 +429,11 @@ end
 
 -- A small page in the game's own options that opens the window above.
 function ns.RegisterSettingsCategory()
+  local function CloseGameOptions()
+    if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
+    if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then HideUIPanel(InterfaceOptionsFrame) end
+  end
+
   local panel = CreateFrame("Frame")
   panel.name = "Reverie"
   local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -439,8 +444,7 @@ function ns.RegisterSettingsCategory()
   open:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
   open:SetText("Open Reverie options")
   open:SetScript("OnClick", function()
-    if SettingsPanel and SettingsPanel:IsShown() then HideUIPanel(SettingsPanel) end
-    if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then HideUIPanel(InterfaceOptionsFrame) end
+    CloseGameOptions()
     ns.ShowOptions()
   end)
 
@@ -452,6 +456,17 @@ function ns.RegisterSettingsCategory()
   hint:SetPoint("LEFT", key, "RIGHT", 10, 0)
   hint:SetText("Click, then press a key. Right-click to clear.")
   ns.PhotoKeyButton(key, function(text) key:SetText(text) end)
+
+  local tour = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+  tour:SetSize(200, 26)
+  tour:SetPoint("TOPLEFT", key, "BOTTOMLEFT", 0, -12)
+  tour:SetText("Show the tour")
+  tour:SetScript("OnClick", function()
+    -- In combat the tour refuses to start, so leave the game's options open.
+    if InCombatLockdown() then return ns.Tour.Start() end
+    CloseGameOptions()
+    ns.Tour.Start()
+  end)
 
   if Settings and Settings.RegisterCanvasLayoutCategory then
     local category = Settings.RegisterCanvasLayoutCategory(panel, "Reverie")

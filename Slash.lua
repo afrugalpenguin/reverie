@@ -1,4 +1,4 @@
--- /reverie: options, preview, stop, photo, unlock/lock, and per-element text settings.
+-- /reverie: options, preview, stop, photo, tour, unlock/lock, and per-element text settings.
 local _, ns = ...
 local Layout = ns.Layout
 local state = ns.state
@@ -51,6 +51,8 @@ SlashCmdList.REVERIE = function(msg)
     ns.Text.Lock()
   elseif sub == "text" then
     TextCommand(rest)
+  elseif sub == "tour" then
+    ns.Tour.Start()
   else
     ns.ToggleOptions()
   end

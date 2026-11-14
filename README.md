@@ -4,6 +4,8 @@ Reverie hides your interface while you travel or step away, so you can just enjo
 
 For WoW Forever.
 
+First time? A short tour shows you around on your first login. Replay it any time with `/reverie tour` or from Options › AddOns › Reverie.
+
 ## The overlay
 
 When you hop on a flight path, fly your mount or go AFK, Reverie hides your interface and adds cinema bars to the top and bottom of the screen. A small title card shows your character's name, guild and the zone you're in, and the camera can slowly drift around you while you take in the view.
@@ -37,6 +39,7 @@ The zone you log in to doesn't count as a first visit, and zones are remembered 
 - `/reverie preview` shows the overlay now. Press Escape to leave it.
 - `/reverie stop` dismisses the overlay until the current trigger ends.
 - `/reverie photo` takes a photo.
+- `/reverie tour` shows the onboarding tour again.
 - `/reverie unlock` shows every text element with a dashed outline and its name, even ones you've switched off. Drag any of them with the mouse to place it freely. `/reverie lock` (or Escape) finishes. Unlocking isn't allowed in combat.
 - `/reverie text <element> on` or `off` shows or hides an element.
 - `/reverie text <element> anchor <position>` pins an element to one of nine positions: `TL`, `TC`, `TR` (top left, middle, right), `ML`, `MC`, `MR` (middle row) or `BL`, `BC`, `BR` (bottom row).

@@ -18,3 +18,4 @@ AutoShots.lua
 Slash.lua
 Options.lua
 PhotoOptions.lua
+Tour.lua
