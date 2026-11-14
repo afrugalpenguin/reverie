@@ -52,12 +52,15 @@ function ns.Refresh()
 end
 
 function ns.ResetSettings()
-  -- Not settings, so a reset keeps them: CVars still waiting to be put back, and zones visited.
+  -- Not settings, so a reset keeps them: CVars still waiting to be put back, zones visited, and
+  -- whether the tour has been seen.
   local restore = ns.settings and ns.settings.restore
   local visited = ns.settings and ns.settings.visited
+  local tourSeen = ns.settings and ns.settings.tourSeen
   ns.settings = Layout.Defaults()
   ns.settings.restore = restore
   ns.settings.visited = visited or ns.settings.visited
+  if tourSeen ~= nil then ns.settings.tourSeen = tourSeen end
   ReverieDB = ns.settings
   ns.Refresh()
 end
@@ -68,6 +71,7 @@ function ns.Preview()
   ns.Triggers.Evaluate()
 end
 
+local tourNews = false -- a save from before the tour: tell them about /reverie tour at login
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
@@ -80,6 +84,7 @@ events:SetScript("OnEvent", function(self, event, arg1)
     ns.CVars.RestoreAll()
   elseif event == "ADDON_LOADED" then
     if arg1 ~= addonName then return end
+    tourNews = Layout.TourNews(ReverieDB)
     ns.settings = Layout.Merge(ReverieDB)
     ReverieDB = ns.settings
     self:UnregisterEvent("ADDON_LOADED")
@@ -101,6 +106,10 @@ events:SetScript("OnEvent", function(self, event, arg1)
       self:RegisterEvent(e)
     end
     ns.Triggers.Begin()
+    if tourNews then
+      print("|cfff2deaeReverie|r: new: /reverie tour shows you around.")
+    end
+    ns.Tour.AutoLater()
   elseif event == "PLAYER_REGEN_DISABLED" then
     -- Fires just before combat lockdown, while UIParent can still be shown.
     ns.Photo.Abort("entered combat")
