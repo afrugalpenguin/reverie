@@ -1,5 +1,6 @@
 **Unreleased**
 
+- `/rev` is a shorter way to type `/reverie`, and works with all its commands (`/rev photo`, `/rev tour` and so on).
 - Fixed the photo key button taking over a movement key: pressing A twice while it was listening made A take photos instead of strafing. A key that already does something now only changes when you click the button to confirm, and the button stops listening after 10 seconds without a key. If this happened to you, set the key back in Options › Keybindings.
 - Reverie's chat messages now say plainly what happened and what you can do next. For example, setting a photo key now says "M now takes photos. It was set to "Toggle World Map Pane"; to put that back, go to Options > Keybindings." instead of "M no longer does Toggle World Map Pane."
 

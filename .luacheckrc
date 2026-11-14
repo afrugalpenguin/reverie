@@ -3,7 +3,7 @@ max_line_length = 140
 exclude_files = { "tests/" }
 
 globals = {
-  "ReverieDB", "SLASH_REVERIE1", "SlashCmdList", "UISpecialFrames",
+  "ReverieDB", "SLASH_REVERIE1", "SLASH_REVERIE2", "SlashCmdList", "UISpecialFrames",
   "BINDING_HEADER_REVERIE", "BINDING_NAME_REVERIE_PHOTO",
 }
 
