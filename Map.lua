@@ -57,12 +57,10 @@ local function Data(style)
   progress = p
 
   local nextStop, isDestination = Route.NextStop(f.route, p)
-  local zone = m.details.zone and GetZoneText() or nil
   return {
     style = style, bars = ns.settings.options.bars, route = f.route, progress = p,
     eta = m.details.eta and eta or nil,
     nextStop = (m.details.nextStop and not isDestination) and nextStop or nil,
-    zone = (zone and zone ~= "") and zone or nil,
     art = (style == "overlay" and m.terrain) and ns.MapView.Art(f.map) or nil,
     strength = m.strength,
   }

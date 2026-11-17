@@ -84,8 +84,8 @@ Layout.AUTO_NAMES = {
 
 Layout.MAP_STYLES = { "strip", "overlay", "off" } -- also the map key's cycle order
 Layout.MAP_STYLE_NAMES = { strip = "Strip", overlay = "Overlay", off = "Off" }
-Layout.MAP_DETAILS = { "eta", "nextStop", "zone" }
-Layout.MAP_DETAIL_NAMES = { eta = "Time to arrival", nextStop = "Next stop", zone = "Zone you're flying over" }
+Layout.MAP_DETAILS = { "eta", "nextStop" }
+Layout.MAP_DETAIL_NAMES = { eta = "Time to arrival", nextStop = "Next stop" }
 
 Layout.MAP_STRIP_H = 64                 -- the strip's height without bars, in UI units
 Layout.MAP_BOX_W, Layout.MAP_BOX_H = 380, 250 -- the overlay style's area, bottom right
@@ -132,7 +132,7 @@ local DEFAULTS = {
   map = {
     style = "strip",    -- strip, overlay or off
     auto = true,        -- show on flight paths without pressing the map key
-    details = { eta = true, nextStop = true, zone = true },
+    details = { eta = true, nextStop = true },
     terrain = true,     -- overlay style only: the map's art under the route
     strength = 70,      -- terrain strength, 20 to 100
   },

@@ -26,7 +26,7 @@ local TERRAIN_MAX = 0.85          -- terrain alpha at strength 100
 local STRIP_FADE = 0.75           -- the dark gradient under a strip without bars
 local LINE_GAP = 16               -- strip: between a name and the line
 local BOX_PAD = 26                -- overlay: between the route and the box's edges
-local BOX_TEXT_H = 50             -- overlay: room at the top for the destination block
+local BOX_TEXT_H = 66             -- overlay: room at the top for the destination block
 local DOT, GAP = 4, 5             -- overlay: the remaining route's dots and the gaps between
 
 -- Pools of textures, lines and font strings, reused every redraw.
@@ -141,16 +141,18 @@ function MapView.New(root)
   self.boxLines = Pool(function() return route:CreateLine(nil, "ARTWORK") end)
   self.boxDots = Pool(function() return Dot(route) end)
   self.boxLabels = Pool(function() return Label(route, "body", 11, CREAM) end)
-  self.title = Label(route, "title", 18, CREAM)
+  -- Top right: "Flying to" small, the destination large, then the details.
+  self.flyingTo = Label(route, "body", 11, DIM)
+  self.flyingTo:SetJustifyH("RIGHT")
+  self.flyingTo:SetPoint("TOPRIGHT")
+  self.flyingTo:SetText("Flying to")
+  self.title = Label(route, "title", 20, CREAM)
   self.title:SetJustifyH("RIGHT")
-  self.title:SetPoint("TOPRIGHT")
+  self.title:SetPoint("TOPRIGHT", self.flyingTo, "BOTTOMRIGHT", 0, -2)
   self.info = Label(route, "body", 12, CREAM)
   self.info:SetJustifyH("RIGHT")
   self.info:SetWordWrap(true)
   self.info:SetPoint("TOPRIGHT", self.title, "BOTTOMRIGHT", 0, -3)
-
-  -- "Over <zone>", centred in the top bar (either style), or with the map without bars.
-  self.zone = Label(f, "body", 12, DIM)
 
   f:Hide()
   return self
@@ -235,7 +237,6 @@ local function DrawStrip(self, d, w, h)
   self.markerText:SetPoint("BOTTOM", strip, "TOPLEFT", mx, -(y - 8))
   self.markerText:SetShown(#parts > 0)
 
-  return r
 end
 
 local function DrawBox(self, d, w, h)
@@ -326,14 +327,12 @@ local function DrawBox(self, d, w, h)
   local lines = {}
   if d.eta then lines[#lines + 1] = Route.FormatTime(d.eta) .. " to arrival" end
   if d.nextStop then lines[#lines + 1] = "Next stop: " .. Route.ShortName(d.nextStop.name) end
-  if d.zone and not d.bars then lines[#lines + 1] = "Over " .. d.zone end
   self.info:SetText(table.concat(lines, "\n"))
   self.info:SetShown(#lines > 0)
-  return r
 end
 
--- d: { style = "strip" | "overlay" | "off", bars, route, progress, eta, nextStop, zone, art,
--- strength }. eta, nextStop, zone and art are nil when not shown; Map.lua decides which details
+-- d: { style = "strip" | "overlay" | "off", bars, route, progress, eta, nextStop, art, strength }.
+-- eta, nextStop and art are nil when not shown; Map.lua decides which details
 -- are on. nextStop is a stop on the way, never the destination.
 function MapView:Apply(d)
   if not d or d.style == "off" or not d.route then
@@ -344,26 +343,10 @@ function MapView:Apply(d)
   self.frame:Show()
   self.strip:SetShown(d.style == "strip")
   self.box:SetShown(d.style == "overlay")
-  local r
   if d.style == "strip" then
-    r = DrawStrip(self, d, w, h)
+    DrawStrip(self, d, w, h)
   else
-    r = DrawBox(self, d, w, h)
-  end
-
-  -- The zone: in the top bar, else just above a strip; the overlay's info block has it otherwise.
-  local zone = self.zone
-  zone:ClearAllPoints()
-  if d.zone and d.bars then
-    zone:SetText("Over " .. d.zone)
-    zone:SetPoint("CENTER", self.frame, "TOPLEFT", w / 2, -Layout.BarHeight(h, true) / 2)
-    zone:Show()
-  elseif d.zone and d.style == "strip" then
-    zone:SetText("Over " .. d.zone)
-    zone:SetPoint("BOTTOM", self.frame, "TOPLEFT", w / 2, -(r.top - 2))
-    zone:Show()
-  else
-    zone:Hide()
+    DrawBox(self, d, w, h)
   end
 end
 

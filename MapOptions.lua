@@ -24,7 +24,6 @@ local SAMPLE_NODES = {
 }
 local SAMPLE_PROGRESS = 0.45
 local SAMPLE_ETA = 96
-local SAMPLE_ZONE = "The Barrens"
 
 local UI
 local view, sample
@@ -208,7 +207,6 @@ function ns.RefreshMapPage()
     style = m.style, bars = ns.settings.options.bars, route = sample, progress = SAMPLE_PROGRESS,
     eta = m.details.eta and SAMPLE_ETA or nil,
     nextStop = (m.details.nextStop and not isDestination) and nextStop or nil,
-    zone = m.details.zone and SAMPLE_ZONE or nil,
     art = (overlay and m.terrain) and ns.MapView.Art(SAMPLE_MAP) or nil,
     strength = m.strength,
   })

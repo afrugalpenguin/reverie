@@ -18,7 +18,7 @@ The text can fade after 10 seconds without mouse movement; move the mouse and it
 
 On a flight path, the overlay also shows a map of your flight: where you started, any stops on the way, where you're going, and how far along you are. Reverie times each flight and learns how long every route takes, so from your second flight on a route it shows the time to arrival too.
 
-- **Strip** (the default) runs along the bottom letterbox bar, with the zone you're flying over in the top bar.
+- **Strip** (the default) runs along the bottom letterbox bar.
 - **Overlay** draws the route over the view in the bottom right, with the land underneath, faded at the edges.
 
 The "Flight map" key binding (Options › Keybindings › Reverie), or `/reverie map`, switches between Strip, Overlay and Off for the current flight only. The map never appears in photos or screenshots.
@@ -89,7 +89,7 @@ Elements pinned to the same position stack in a fixed order (name, guild, realm,
 **Map**
 
 - flight map style: Strip, Overlay or Off, and whether it shows automatically on flight paths
-- details: time to arrival, next stop, the zone you're flying over
+- details: time to arrival and next stop
 - Overlay style: show the land under the route, and how strongly
 - forget learned flight times
 
