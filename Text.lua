@@ -148,7 +148,9 @@ function Text.Render()
   if state.unlocked then
     live.renderer:Apply(ns.settings, ns.Texts(true), nil, { onDrop = OnDrop })
   elseif state.active then
-    live.renderer:Apply(ns.settings, ns.Texts(false))
+    -- Bottom text moves up clear of the flight map when the map is down there.
+    local reserve = ns.Map.Reserve(live.frame:GetWidth(), live.frame:GetHeight())
+    live.renderer:Apply(ns.settings, ns.Texts(false), nil, nil, reserve)
   end
 end
 

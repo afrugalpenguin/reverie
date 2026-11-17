@@ -2,7 +2,9 @@
 -- Run from the repo root:  lua tests/run.lua
 local ns = {}
 assert(loadfile("Layout.lua"))("Reverie", ns)
+assert(loadfile("Route.lua"))("Reverie", ns)
 local L = ns.Layout
+local R = ns.Route
 
 local passed, failed = 0, 0
 local function test(name, fn)
@@ -1146,6 +1148,474 @@ end)
 
 test("HasSecret: a client without issecretvalue has no secrets", function()
   eq(L.HasSecret(nil, SECRET, true), false)
+end)
+
+-- Flight map settings (#56) ---------------------------------------------------------
+
+test("map defaults: strip, automatic, both details, terrain at 70", function()
+  local m = L.Defaults().map
+  eq(m.style, "strip")
+  eq(m.auto, true)
+  eq(m.details.eta, true)
+  eq(m.details.nextStop, true)
+  eq(m.details.zone, nil, "no zone detail")
+  eq(#L.MAP_DETAILS, 2)
+  eq(m.terrain, true)
+  eq(m.strength, 70)
+  eq(next(L.Defaults().flightTimes), nil, "no learned times")
+end)
+
+test("Merge gives a save without a map block the map defaults", function()
+  local s = L.Merge({ version = 2, elements = {}, options = {} })
+  eq(s.map.style, "strip")
+  eq(s.map.details.nextStop, true)
+  eq(s.map.strength, 70)
+  eq(type(s.flightTimes), "table")
+end)
+
+test("Merge keeps good map values", function()
+  local s = L.Merge({ map = { style = "overlay", auto = false, terrain = false, strength = 20,
+    details = { eta = false, nextStop = false } } })
+  eq(s.map.style, "overlay")
+  eq(s.map.auto, false)
+  eq(s.map.terrain, false)
+  eq(s.map.strength, 20)
+  eq(s.map.details.eta, false)
+  eq(s.map.details.nextStop, false)
+end)
+
+test("Merge replaces bad map values field by field", function()
+  local s = L.Merge({ map = { style = "huge", auto = "yes", terrain = 1, strength = 150,
+    details = { eta = "no" } } })
+  eq(s.map.style, "strip", "unknown style")
+  eq(s.map.auto, true, "non-boolean auto")
+  eq(s.map.terrain, true, "non-boolean terrain")
+  eq(s.map.strength, 70, "strength above 100")
+  eq(s.map.details.eta, true, "non-boolean detail")
+  eq(s.map.details.nextStop, true, "missing detail")
+  eq(L.Merge({ map = { strength = 19 } }).map.strength, 70, "strength below 20")
+  eq(L.Merge({ map = { strength = 0 / 0 } }).map.strength, 70, "NaN strength")
+  eq(L.Merge({ map = "strip" }).map.style, "strip", "map not a table")
+end)
+
+test("Merge keeps unknown map keys", function()
+  eq(L.Merge({ map = { future = 3 } }).map.future, 3)
+end)
+
+test("Merge keeps good learned times and drops malformed ones", function()
+  local s = L.Merge({ flightTimes = {
+    ["22>42"] = { seconds = 252.5, count = 3 },
+    ["a>b"] = { seconds = 5, count = 1 },         -- implausibly short
+    ["c>d"] = { seconds = 4000, count = 1 },      -- implausibly long
+    ["e>f"] = { seconds = 100, count = 0 },       -- no flights counted
+    ["g>h"] = { seconds = "100", count = 1 },
+    ["i>j"] = "100",
+    [7] = { seconds = 100, count = 1 },           -- key not a string
+    ["k>l"] = { seconds = 100, count = 2.6 },     -- rounded
+    ["m>n"] = { seconds = 100, count = 99 },      -- capped
+  } })
+  local t = s.flightTimes
+  eq(t["22>42"].seconds, 252.5)
+  eq(t["22>42"].count, 3)
+  eq(t["a>b"], nil)
+  eq(t["c>d"], nil)
+  eq(t["e>f"], nil)
+  eq(t["g>h"], nil)
+  eq(t["i>j"], nil)
+  eq(t[7], nil)
+  eq(t["k>l"].count, 3)
+  eq(t["m>n"].count, R.LEARN_CAP)
+  eq(next(L.Merge({ flightTimes = "x" }).flightTimes), nil, "not a table")
+end)
+
+-- A flight in progress, as Flight.lua saves it.
+local function savedFlight()
+  return {
+    key = "22>42", map = 1464, chosenAt = 100, chosenWall = 5000, boarded = true, style = "overlay",
+    route = R.Build({ { 0.4495, 0.5615, 0.4425, 0.6939 } }, {
+      { nodeID = 22, name = "Thunder Bluff, Mulgore", x = 0.4495, y = 0.5615 },
+      { nodeID = 42, name = "Camp Mojache, Feralas", x = 0.4425, y = 0.6939 },
+    }),
+  }
+end
+
+test("Merge keeps a well-formed flight in progress", function()
+  local f = L.Merge({ flight = savedFlight() }).flight
+  eq(f.key, "22>42")
+  eq(f.style, "overlay")
+  eq(#f.route.points, 2)
+  eq(f.route.stops[2].name, "Camp Mojache, Feralas")
+end)
+
+test("Merge drops a malformed flight in progress", function()
+  local function without(field, value)
+    local f = savedFlight()
+    f[field] = value
+    return L.Merge({ flight = f }).flight
+  end
+  eq(without("map", "1464"), nil, "map")
+  eq(without("chosenAt", nil), nil, "chosenAt")
+  eq(without("chosenWall", "now"), nil, "chosenWall")
+  eq(without("route", {}), nil, "route without points")
+  local bad = savedFlight()
+  bad.route.points[2].x = "far"
+  eq(L.Merge({ flight = bad }).flight, nil, "point not a number")
+  local short = savedFlight()
+  short.route.stops[2] = nil
+  eq(L.Merge({ flight = short }).flight, nil, "stops don't match points")
+  eq(L.Merge({ flight = "yes" }).flight, nil, "not a table")
+  eq(without("style", "huge").style, nil, "a bad override style is dropped, not the flight")
+  eq(without("key", 3).key, nil, "a bad key is dropped: the flight shows but isn't learned")
+end)
+
+-- Map placement and text clearance -------------------------------------------------
+
+test("MapStrip is the bottom bar, or a strip at the bottom edge without bars", function()
+  local on = L.MapStrip(1000, 800, true)
+  eq(on.top, 800 - 88)
+  eq(on.height, 88)
+  eq(on.width, 1000)
+  local off = L.MapStrip(1000, 800, false)
+  eq(off.top, 800 - L.MAP_STRIP_H)
+  eq(off.height, L.MAP_STRIP_H)
+end)
+
+test("MapBox sits bottom right above the bar", function()
+  local b = L.MapBox(1000, 800, true)
+  eq(b.width, L.MAP_BOX_W)
+  eq(b.height, L.MAP_BOX_H)
+  eq(b.left + b.width, 1000 - L.PAD.side, "right edge at the side padding")
+  eq(b.top + b.height, 800 - 88 - L.PAD.bar, "bottom edge above the bar")
+  local nb = L.MapBox(1000, 800, false)
+  eq(nb.top + nb.height, 800 - L.PAD.edge, "without bars, at the edge padding")
+end)
+
+test("MapReserve: a strip in the bar needs no room; off needs none", function()
+  eq(L.MapReserve("strip", 1000, 800, true), nil)
+  eq(L.MapReserve("off", 1000, 800, true), nil)
+  eq(L.MapReserve(nil, 1000, 800, false), nil)
+end)
+
+test("MapReserve: a strip without bars clears every bottom anchor", function()
+  local r = L.MapReserve("strip", 1000, 800, false)
+  eq(r.BL, L.MAP_STRIP_H)
+  eq(r.BC, L.MAP_STRIP_H)
+  eq(r.BR, L.MAP_STRIP_H)
+end)
+
+test("MapReserve: the overlay clears bottom right only, backing and gap included", function()
+  local r = L.MapReserve("overlay", 1000, 800, true)
+  local b = L.MapBox(1000, 800, true)
+  eq(r.BR, 800 - b.top + L.MAP_BACKING + L.MAP_TEXT_GAP - L.PAD.bar)
+  eq(r.BL, nil)
+  eq(r.BC, nil)
+end)
+
+test("Positions: a bottom stack sits above the reserved map", function()
+  local s = only("name", "BL", false)
+  local p = L.Positions(s, 1000, 800, sizes(100, 20), false, nil, L.MapReserve("strip", 1000, 800, false))
+  eq(p.name.top + 20, 800 - L.MAP_STRIP_H - L.PAD.bar, "text bottom clears the strip")
+  local plain = L.Positions(s, 1000, 800, sizes(100, 20))
+  eq(plain.name.top, 756, "no reserve: unchanged")
+end)
+
+test("Positions: the overlay pushes bottom right text up and leaves bottom left alone", function()
+  local reserve = L.MapReserve("overlay", 1000, 800, true)
+  local br = L.Positions(only("name", "BR", true), 1000, 800, sizes(100, 20), false, nil, reserve)
+  eq(br.name.top + 20, 800 - reserve.BR - L.PAD.bar)
+  local box = L.MapBox(1000, 800, true)
+  eq(br.name.top + 20 <= box.top - L.MAP_BACKING - 24, true, "24 units clear of the backing's top edge")
+  local nb = L.Positions(only("name", "BR", false), 1000, 800, sizes(100, 20), false, nil,
+    L.MapReserve("overlay", 1000, 800, false))
+  eq(nb.name.top + 20 <= L.MapBox(1000, 800, false).top - L.MAP_BACKING - 24, true, "and without bars")
+  local bl = L.Positions(only("name", "BL", true), 1000, 800, sizes(100, 20), false, nil, reserve)
+  eq(bl.name.top, 674, "bottom left as before")
+  local tr = L.Positions(only("name", "TR", true), 1000, 800, sizes(100, 20), false, nil, reserve)
+  eq(tr.name.top, 106, "top anchors never move")
+end)
+
+test("Positions: a reserve smaller than the bar changes nothing", function()
+  local p = L.Positions(only("name", "BL", true), 1000, 800, sizes(100, 20), false, nil, { BL = 10 })
+  eq(p.name.top, 674)
+end)
+
+-- Route building --------------------------------------------------------------------
+
+-- Thunder Bluff to Camp Mojache, from the spike's log (taxi map 1464).
+local TB = { nodeID = 22, name = "Thunder Bluff, Mulgore", x = 0.4495, y = 0.5615 }
+local XR = { nodeID = 25, name = "Crossroads, The Barrens", x = 0.5574, y = 0.5305 }
+local RA = { nodeID = 80, name = "Ratchet, The Barrens", x = 0.6057, y = 0.5491 }
+local OLD = { nodeID = 3208, name = "zzOLDPowderfuse Port, Riverglades", x = 0.6057, y = 0.5491 }
+local CM = { nodeID = 42, name = "Camp Mojache, Feralas", x = 0.4425, y = 0.6939 }
+
+local function hop(a, b) return { a.x, a.y, b.x, b.y } end
+
+test("Build: one hop gives origin and destination with names and node IDs", function()
+  local r = R.Build({ hop(TB, CM) }, { TB, XR, CM })
+  eq(#r.points, 2)
+  eq(#r.stops, 2)
+  eq(r.stops[1].name, TB.name)
+  eq(r.stops[1].nodeID, 22)
+  eq(r.stops[2].name, CM.name)
+  eq(r.stops[2].nodeID, 42)
+  near(r.stops[1].at, 0)
+  near(r.stops[2].at, 1)
+end)
+
+test("Build: a multi-stop flight has a stop per hop, placed by distance along the route", function()
+  -- A to B is 0.3 long, B to C 0.4.
+  local A = { nodeID = 1, name = "A", x = 0.1, y = 0.1 }
+  local B = { nodeID = 2, name = "B", x = 0.4, y = 0.1 }
+  local C = { nodeID = 3, name = "C", x = 0.4, y = 0.5 }
+  local r = R.Build({ hop(A, B), hop(B, C) }, { A, B, C })
+  eq(#r.stops, 3)
+  eq(r.stops[2].name, "B")
+  near(r.stops[2].at, 0.3 / 0.7)
+  near(r.length, 0.7)
+end)
+
+test("Build skips zzOLD nodes that share a real node's position", function()
+  local r = R.Build({ hop(TB, XR), hop(XR, RA) }, { OLD, TB, XR, RA })
+  eq(r.stops[3].name, RA.name)
+  eq(r.stops[3].nodeID, 80)
+end)
+
+test("Build leaves a stop unnamed when no node is close", function()
+  local r = R.Build({ { 0.1, 0.1, 0.9, 0.9 } }, { TB })
+  eq(r.stops[1].name, nil)
+  eq(r.stops[2].nodeID, nil)
+end)
+
+test("Build refuses no hops and bad coordinates", function()
+  eq(R.Build({}, {}), nil)
+  eq(R.Build(nil, {}), nil)
+  eq(R.Build({ { 0.1, 0.1, "x", 0.2 } }, {}), nil)
+  eq(R.Build({ { 0.1, 0.1, 0.1, 0.1 } }, {}), nil, "zero length")
+end)
+
+test("Key uses node IDs, or names when there are none", function()
+  eq(R.Key(R.Build({ hop(TB, CM) }, { TB, CM })), "22>42")
+  local A = { name = "A", x = 0.1, y = 0.1 }
+  local B = { name = "B", x = 0.5, y = 0.1 }
+  eq(R.Key(R.Build({ hop(A, B) }, { A, B })), "A>B")
+  eq(R.Key(R.Build({ { 0.1, 0.1, 0.9, 0.9 } }, {})), nil, "nothing to name it by")
+end)
+
+-- Projection, progress, time to arrival ---------------------------------------------
+
+local A, B, C = { name = "A", x = 0.1, y = 0.1 }, { name = "B", x = 0.4, y = 0.1 }, { name = "C", x = 0.4, y = 0.5 }
+local function abc() return R.Build({ hop(A, B), hop(B, C) }, { A, B, C }) end
+
+test("Project: points on and beside the route give the fraction travelled", function()
+  local r = abc()
+  near(R.Project(r, 0.1, 0.1), 0)
+  near(R.Project(r, 0.25, 0.1), 0.15 / 0.7)
+  near(R.Project(r, 0.25, 0.13), 0.15 / 0.7, "off to one side")
+  near(R.Project(r, 0.4, 0.3), 0.5 / 0.7, "second hop")
+  near(R.Project(r, 0.4, 0.9), 1, "past the end")
+  near(R.Project(r, 0.0, 0.1), 0, "before the start")
+end)
+
+test("Project never jumps back to an earlier hop", function()
+  local r = abc()
+  -- Near B on the first hop, but already well into the second hop: stays on the second hop.
+  eq(R.Project(r, 0.38, 0.1, 0.6) >= 0.3 / 0.7, true)
+end)
+
+test("Progress by time when the route has a learned time, with time to arrival", function()
+  local p, eta = R.Progress(abc(), { elapsed = 60, learned = 240 })
+  near(p, 0.25)
+  near(eta, 180)
+  local done, left = R.Progress(abc(), { elapsed = 300, learned = 240 })
+  near(done, 1, "clamped")
+  near(left, 0, "never negative")
+end)
+
+test("Progress by position without a learned time, and no time to arrival", function()
+  local p, eta = R.Progress(abc(), { elapsed = 60, x = 0.25, y = 0.1 })
+  near(p, 0.15 / 0.7)
+  eq(eta, nil)
+end)
+
+test("Progress by position never goes backwards", function()
+  local p = R.Progress(abc(), { x = 0.2, y = 0.1, prev = 0.5 })
+  near(p, 0.5)
+end)
+
+test("Progress without a learned time or a position stays where it was", function()
+  local p, eta = R.Progress(abc(), { elapsed = 10, prev = 0.2 })
+  near(p, 0.2)
+  eq(eta, nil)
+  near(R.Progress(abc(), {}), 0)
+end)
+
+test("PointAt gives the point and heading at a fraction of the route", function()
+  local r = abc()
+  local x, y, dx, dy = R.PointAt(r, 0.15 / 0.7)
+  near(x, 0.25)
+  near(y, 0.1)
+  near(dx, 1)
+  near(dy, 0)
+  x, y, dx, dy = R.PointAt(r, 1)
+  near(x, 0.4)
+  near(y, 0.5)
+  near(dx, 0, "heading of the last hop")
+  near(dy, 1)
+  x, y = R.PointAt(r, 0)
+  near(x, 0.1)
+  near(y, 0.1)
+  x, y = R.PointAt(r, 2)
+  near(y, 0.5, "clamped past the end")
+end)
+
+test("NextStop: the first stop not yet reached, and whether it's the destination", function()
+  local r = abc()
+  local s, last = R.NextStop(r, 0.1)
+  eq(s.name, "B")
+  eq(last, false)
+  s, last = R.NextStop(r, 0.6)
+  eq(s.name, "C")
+  eq(last, true)
+  s = R.NextStop(r, 1)
+  eq(s, nil, "arrived")
+end)
+
+test("ShortName drops the zone after the comma", function()
+  eq(R.ShortName("Thunder Bluff, Mulgore"), "Thunder Bluff")
+  eq(R.ShortName("Moonglade"), "Moonglade")
+  eq(R.ShortName("Light's Hope Chapel, Eastern Plaguelands"), "Light's Hope Chapel")
+  eq(R.ShortName(nil), "")
+end)
+
+test("FormatTime shows m:ss, rounding up", function()
+  eq(R.FormatTime(0), "0:00")
+  eq(R.FormatTime(59.2), "1:00")
+  eq(R.FormatTime(252.5), "4:13")
+  eq(R.FormatTime(600), "10:00")
+  eq(R.FormatTime(-5), "0:00")
+end)
+
+-- Learned times ----------------------------------------------------------------------
+
+test("Learn: the first good flight is the time", function()
+  local e, ok = R.Learn(nil, 252.5, true)
+  eq(ok, true)
+  eq(e.seconds, 252.5)
+  eq(e.count, 1)
+end)
+
+test("Learn averages with earlier flights on the route", function()
+  local e = R.Learn({ seconds = 240, count = 1 }, 260, true)
+  near(e.seconds, 250)
+  eq(e.count, 2)
+  e = R.Learn({ seconds = 250, count = 2 }, 280, true)
+  near(e.seconds, 260)
+  eq(e.count, 3)
+end)
+
+test("Learn weighs a new flight at least 1 in LEARN_CAP once the route is well known", function()
+  local e = R.Learn({ seconds = 200, count = R.LEARN_CAP }, 300, true)
+  near(e.seconds, 200 + 100 / R.LEARN_CAP)
+  eq(e.count, R.LEARN_CAP)
+end)
+
+test("Learn discards implausible times and flights that ended early", function()
+  local old = { seconds = 240, count = 2 }
+  local e, ok = R.Learn(old, 9.9, true)
+  eq(ok, false)
+  eq(e, old, "too short: unchanged")
+  e, ok = R.Learn(old, 1800.5, true)
+  eq(ok, false, "over 30 minutes")
+  e, ok = R.Learn(old, 250, false)
+  eq(ok, false, "ended early")
+  e, ok = R.Learn(nil, 250, false)
+  eq(e, nil)
+  eq(ok, false)
+  e, ok = R.Learn(old, 0 / 0, true)
+  eq(ok, false, "NaN")
+end)
+
+test("Arrived: at the destination node, not short of it", function()
+  local r = R.Build({ hop(TB, CM) }, { TB, CM })
+  eq(R.Arrived(r, 0.4425, 0.6939), true, "spike landing: distance 0")
+  eq(R.Arrived(r, 0.4433, 0.6935), true, "a few yards off")
+  eq(R.Arrived(r, 0.4491, 0.5626), false, "still at the start")
+  eq(R.Arrived(r, nil, nil), false, "no position")
+end)
+
+-- Styles ----------------------------------------------------------------------------
+
+test("NextStyle cycles strip, overlay, off", function()
+  eq(R.NextStyle("strip"), "overlay")
+  eq(R.NextStyle("overlay"), "off")
+  eq(R.NextStyle("off"), "strip")
+  eq(R.NextStyle(nil), "strip")
+end)
+
+test("Style: the flight's own choice, else the saved style when automatic, else off", function()
+  local m = L.Defaults().map
+  eq(R.Style(m, nil), "strip")
+  eq(R.Style(m, "off"), "off")
+  m.style = "overlay"
+  eq(R.Style(m, nil), "overlay")
+  m.auto = false
+  eq(R.Style(m, nil), "off", "not automatic")
+  eq(R.Style(m, "strip"), "strip", "the map key still shows it")
+end)
+
+-- Fitting the route into the overlay box ----------------------------------------------
+
+test("Fit keeps the map's shape and puts every stop inside the box", function()
+  local r = abc()
+  local fit = R.Fit(r, 1, 380, 250, 20)
+  for _, s in ipairs(r.stops) do
+    local x, y = R.Place(fit, s.x, s.y)
+    eq(x >= 20 - 1e-9 and x <= 360 + 1e-9, true, "x inside")
+    eq(y >= 20 - 1e-9 and y <= 230 + 1e-9, true, "y inside")
+  end
+  -- Same scale both ways: A to B (0.3 across) and B to C (0.4 down) keep their ratio.
+  local ax = R.Place(fit, A.x, A.y)
+  local bx, by = R.Place(fit, B.x, B.y)
+  local _, cy = R.Place(fit, C.x, C.y)
+  near((bx - ax) / (cy - by), 0.3 / 0.4)
+end)
+
+test("Fit with a wide map stretches x by the map's aspect", function()
+  local r = abc()
+  local fit = R.Fit(r, 1.5, 380, 250, 20)
+  local ax = R.Place(fit, A.x, A.y)
+  local bx, by = R.Place(fit, B.x, B.y)
+  local _, cy = R.Place(fit, C.x, C.y)
+  near((bx - ax) / (cy - by), 0.3 * 1.5 / 0.4)
+end)
+
+test("Fit never zooms in past a minimum span, so a short hop isn't blown up", function()
+  local short = R.Build({ { 0.5, 0.5, 0.51, 0.5 } }, {})
+  local fit = R.Fit(short, 1, 380, 250, 20)
+  local ax = R.Place(fit, 0.5, 0.5)
+  local bx = R.Place(fit, 0.51, 0.5)
+  eq(bx - ax <= 210 * 0.01 / R.MIN_SPAN + 1e-9, true)
+end)
+
+-- Resuming after /reload ----------------------------------------------------------------
+
+test("Resume keeps a flight in progress when still on the taxi", function()
+  local f = savedFlight()
+  local r = R.Resume(f, 160, 5060, true)
+  eq(r, f)
+  eq(r.chosenAt, 100, "same session: GetTime still lines up")
+end)
+
+test("Resume re-bases the start time when GetTime no longer lines up", function()
+  local f = savedFlight()
+  local r = R.Resume(f, 20, 5060, true) -- the client restarted: GetTime began again
+  eq(r.chosenAt, 20 - 60)
+end)
+
+test("Resume drops the flight when no longer on the taxi or far too old", function()
+  eq(R.Resume(savedFlight(), 160, 5060, false), nil, "landed")
+  eq(R.Resume(savedFlight(), 160, 5000 + R.MAX_TIME + 1, true), nil, "older than any flight")
+  eq(R.Resume(nil, 160, 5060, true), nil)
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))

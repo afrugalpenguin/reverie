@@ -140,11 +140,13 @@ function Chat.ShowAfterPhoto()
   if box and state.active then box:Show() end
 end
 
--- Calls fn once the box is off screen: straight away if it isn't showing, otherwise after
--- Layout.FRAMES_AFTER_LOOK frames so the hide has been drawn.
+-- Calls fn once the box and the flight map are off screen: straight away if neither is showing,
+-- otherwise after Layout.FRAMES_AFTER_LOOK frames so the hide has been drawn.
 local waiter = CreateFrame("Frame")
 function Chat.BeforeShot(fn)
-  if not HideForShot() then return fn() end
+  local hidChat = HideForShot()
+  local hidMap = ns.Map.HideForShot()
+  if not (hidChat or hidMap) then return fn() end
   local frames = 0
   waiter:SetScript("OnUpdate", function(self)
     frames = frames + 1

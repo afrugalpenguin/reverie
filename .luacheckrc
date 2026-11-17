@@ -4,7 +4,7 @@ exclude_files = { "tests/" }
 
 globals = {
   "ReverieDB", "SLASH_REVERIE1", "SLASH_REVERIE2", "SlashCmdList", "UISpecialFrames",
-  "BINDING_HEADER_REVERIE", "BINDING_NAME_REVERIE_PHOTO",
+  "BINDING_HEADER_REVERIE", "BINDING_NAME_REVERIE_PHOTO", "BINDING_NAME_REVERIE_MAP",
 }
 
 read_globals = {
@@ -18,4 +18,6 @@ read_globals = {
   "WorldFrame", "date", "strtrim", "issecretvalue", "DEFAULT_CHAT_FRAME",
   "GetBindingAction", "GetBindingKey", "GetBindingName", "GetBindingText", "GetCurrentBindingSet",
   "IsAltKeyDown", "IsControlKeyDown", "IsShiftKeyDown", "SaveBindings", "SetBinding",
+  "C_Map", "C_TaxiMap", "GetNumRoutes", "GetTaxiMapID", "NumTaxiNodes", "TakeTaxiNode",
+  "TaxiGetDestX", "TaxiGetDestY", "TaxiGetSrcX", "TaxiGetSrcY", "TaxiNodeName", "TaxiNodePosition",
 }

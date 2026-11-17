@@ -2,4 +2,7 @@
   <Binding name="REVERIE_PHOTO" header="REVERIE" category="BINDING_HEADER_REVERIE">
     SlashCmdList.REVERIE("photo")
   </Binding>
+  <Binding name="REVERIE_MAP" header="REVERIE" category="BINDING_HEADER_REVERIE">
+    SlashCmdList.REVERIE("map")
+  </Binding>
 </Bindings>

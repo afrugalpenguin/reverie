@@ -26,6 +26,7 @@ function ns.Start()
   ns.Text.Render()
   if o.fade then ns.Text.StartFade() end
   ns.Chat.Start()
+  ns.Map.Start()
   ns.Camera.Begin(o)
 end
 
@@ -36,6 +37,7 @@ function ns.Stop()
 
   ns.Text.StopFade()
   ns.Chat.Stop()
+  ns.Map.Stop()
   ns.Camera.End()
   ns.CVars.Restore("overlay")
   ns.Text.Hide()
@@ -49,18 +51,23 @@ end
 -- Called whenever settings change: redraw the overlay and the options preview.
 function ns.Refresh()
   ns.Text.Render()
+  ns.Map.Update()
   if ns.RefreshOptions then ns.RefreshOptions() end
 end
 
 function ns.ResetSettings()
-  -- Not settings, so a reset keeps them: CVars still waiting to be put back, zones visited, and
-  -- whether the tour has been seen.
+  -- Not settings, so a reset keeps them: CVars still waiting to be put back, zones visited,
+  -- whether the tour has been seen, learned flight times and the flight in progress.
   local restore = ns.settings and ns.settings.restore
   local visited = ns.settings and ns.settings.visited
   local tourSeen = ns.settings and ns.settings.tourSeen
+  local flightTimes = ns.settings and ns.settings.flightTimes
+  local flight = ns.settings and ns.settings.flight
   ns.settings = Layout.Defaults()
   ns.settings.restore = restore
   ns.settings.visited = visited or ns.settings.visited
+  ns.settings.flightTimes = flightTimes or ns.settings.flightTimes
+  ns.settings.flight = flight
   if tourSeen ~= nil then ns.settings.tourSeen = tourSeen end
   ReverieDB = ns.settings
   ns.Refresh()

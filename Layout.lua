@@ -80,6 +80,21 @@ Layout.AUTO_NAMES = {
   level = "Level up", zone = "First visit to a zone", achievement = "Achievement", boss = "Boss defeated",
 }
 
+-- Flight map ---------------------------------------------------------------------
+
+Layout.MAP_STYLES = { "strip", "overlay", "off" } -- also the map key's cycle order
+Layout.MAP_STYLE_NAMES = { strip = "Strip", overlay = "Overlay", off = "Off" }
+Layout.MAP_DETAILS = { "eta", "nextStop" }
+Layout.MAP_DETAIL_NAMES = { eta = "Time to arrival", nextStop = "Next stop" }
+
+Layout.MAP_STRIP_H = 64                 -- the strip's height without bars, in UI units
+Layout.MAP_BOX_W, Layout.MAP_BOX_H = 380, 250 -- the overlay style's area, bottom right
+Layout.MAP_BACKING = 60                 -- the overlay's dark backing reaches this far past the box
+Layout.MAP_TEXT_GAP = 24                -- at least this between the backing and text above it
+Layout.MAP_STRENGTH_MIN = 20            -- terrain strength range, in percent
+Layout.FLIGHT_MIN, Layout.FLIGHT_MAX = 10, 1800 -- seconds; flight times outside this are discarded
+Layout.LEARN_CAP = 10                   -- flights averaged per route before older ones start to fade
+
 -- Saved-variables schema. v1 (Reverie 0.1.x) had no version key and stored free
 -- positions as screen percentages (0-100); v2 stores them as fractions (0-1).
 Layout.SCHEMA = 2
@@ -116,6 +131,17 @@ local DEFAULTS = {
     quality = 9,        -- 1 to 10
     auto = { level = true, zone = false, achievement = false, boss = false },
   },
+  map = {
+    style = "strip",    -- strip, overlay or off
+    auto = true,        -- show on flight paths without pressing the map key
+    details = { eta = true, nextStop = true },
+    terrain = true,     -- overlay style only: the map's art under the route
+    strength = 70,      -- terrain strength, 20 to 100
+  },
+  -- Learned flight times, not settings: { ["originID>destID"] = { seconds = average, count = flights } }.
+  flightTimes = {},
+  -- The flight in progress (Flight.lua), so a /reload mid-flight keeps the map. No default: absent
+  -- when not flying.
   -- Zones each character has been to, for "first visit to a zone": { ["Name-Realm"] = { [zone] = true } }.
   visited = {},
   -- The onboarding tour has been finished or skipped (account-wide). Merge sets it to true for a
@@ -149,6 +175,7 @@ local VALID_FRAME = set(Layout.FRAMES)
 local VALID_CAMERA = set(Layout.CAMERAS)
 local VALID_TIMER = set(Layout.TIMERS)
 local VALID_FORMAT = set(Layout.FORMATS)
+local VALID_STYLE = set(Layout.MAP_STYLES)
 
 function Layout.Defaults()
   return copy(DEFAULTS)
@@ -221,6 +248,59 @@ local function MergePhoto(out, defaults)
   booleans(subtable(p, "auto"), defaults.auto)
 end
 
+local function MergeMap(out, defaults)
+  local m = subtable(out, "map")
+  booleans(m, defaults)
+  booleans(subtable(m, "details"), defaults.details)
+  m.style = choice(m.style, VALID_STYLE, defaults.style)
+  m.strength = wholeNumber(m.strength, Layout.MAP_STRENGTH_MIN, 100, defaults.strength)
+end
+
+local function number(v) return type(v) == "number" and v == v end
+
+-- Learned times: string key -> { seconds, count }; anything implausible is dropped.
+local function MergeFlightTimes(out)
+  if type(out.flightTimes) ~= "table" then out.flightTimes = {} end
+  local times = out.flightTimes
+  for key, e in pairs(times) do
+    local ok = type(key) == "string" and type(e) == "table" and number(e.seconds) and number(e.count)
+      and e.seconds >= Layout.FLIGHT_MIN and e.seconds <= Layout.FLIGHT_MAX and e.count >= 1
+    if ok then
+      e.count = math.min(math.floor(e.count + 0.5), Layout.LEARN_CAP)
+    else
+      times[key] = nil
+    end
+  end
+end
+
+-- The flight in progress: kept only if the map could draw it, otherwise dropped whole.
+local function ValidRoute(route)
+  if type(route) ~= "table" or type(route.points) ~= "table" or type(route.stops) ~= "table" then return false end
+  if not number(route.length) or route.length <= 0 then return false end
+  local n = #route.points
+  if n < 2 or #route.stops ~= n then return false end
+  for i = 1, n do
+    local p, s = route.points[i], route.stops[i]
+    if type(p) ~= "table" or not number(p.x) or not number(p.y) then return false end
+    if type(s) ~= "table" or not number(s.x) or not number(s.y) or not number(s.at) then return false end
+    if type(s.name) ~= "string" then s.name = nil end
+    if not number(s.nodeID) then s.nodeID = nil end
+  end
+  return true
+end
+
+local function MergeFlight(out)
+  local f = out.flight
+  if type(f) ~= "table" or not number(f.map) or not number(f.chosenAt) or not number(f.chosenWall)
+      or not ValidRoute(f.route) then
+    out.flight = nil
+    return
+  end
+  if type(f.key) ~= "string" then f.key = nil end            -- shown, but its time isn't learned
+  if not VALID_STYLE[f.style] then f.style = nil end         -- the map key's choice for this flight
+  if type(f.boarded) ~= "boolean" then f.boarded = false end
+end
+
 -- Builds settings from saved variables: migrates, keeps the user's values and any keys it
 -- doesn't know, replaces malformed known values with defaults, and fills gaps with defaults.
 -- A hand-edited SavedVariables file can't break the overlay.
@@ -249,6 +329,9 @@ function Layout.Merge(saved)
   end
 
   MergePhoto(out, defaults.photo)
+  MergeMap(out, defaults.map)
+  MergeFlightTimes(out)
+  MergeFlight(out)
 
   -- visited: character key -> { zone name -> true }; anything else is dropped.
   if type(out.visited) ~= "table" then out.visited = {} end
@@ -279,10 +362,12 @@ end
 --            skipped, so they leave no gap.
 --   showAll: place hidden elements too (unlock mode).
 --   order:   element ids in stacking order; Layout.ORDER by default (the photo stamp passes its own).
+--   reserve: bottom anchor -> UI units from the screen's bottom edge taken by the flight map
+--            (Layout.MapReserve), so a bottom stack sits above it. nil when there's no map.
 -- Anchored elements sharing an anchor stack in Layout.ORDER, aligned to that side. Top and
 -- bottom anchors sit inside the letterbox bars when they're on. Free elements are centred on
 -- their x/y fraction of the screen.
-function Layout.Positions(settings, screenW, screenH, sizes, showAll, order)
+function Layout.Positions(settings, screenW, screenH, sizes, showAll, order, reserve)
   local PAD = Layout.PAD
   local barH = Layout.BarHeight(screenH, settings.options.bars)
   local edge = barH > 0 and (barH + PAD.bar) or PAD.edge
@@ -311,7 +396,8 @@ function Layout.Positions(settings, screenW, screenH, sizes, showAll, order)
       if row == "T" then
         y = edge
       elseif row == "B" then
-        y = screenH - edge - total
+        local taken = reserve and reserve[anchor]
+        y = screenH - math.max(edge, taken and (taken + PAD.bar) or 0) - total
       else
         y = (screenH - total) / 2
       end
@@ -701,6 +787,42 @@ function Layout.ChatRectFrom(left, bottom, width, height, fromScale, toScale)
   if width <= 0 or height <= 0 or fromScale <= 0 or toScale <= 0 then return nil end
   local k = fromScale / toScale
   return { left = left * k, bottom = bottom * k, width = width * k, height = height * k }
+end
+
+-- Flight map placement ---------------------------------------------------------------
+
+-- The strip style's area, in screen units from the top-left: the bottom letterbox bar, or a band
+-- along the bottom edge when bars are off.
+function Layout.MapStrip(screenW, screenH, barsOn)
+  local h = barsOn and Layout.BarHeight(screenH, true) or Layout.MAP_STRIP_H
+  return { left = 0, top = screenH - h, width = screenW, height = h }
+end
+
+-- The overlay style's area: bottom right, above the bar (or the bottom edge padding).
+function Layout.MapBox(screenW, screenH, barsOn)
+  local barH = Layout.BarHeight(screenH, barsOn)
+  local bottom = barH > 0 and (barH + Layout.PAD.bar) or Layout.PAD.edge
+  return {
+    left = screenW - Layout.PAD.side - Layout.MAP_BOX_W,
+    top = screenH - bottom - Layout.MAP_BOX_H,
+    width = Layout.MAP_BOX_W,
+    height = Layout.MAP_BOX_H,
+  }
+end
+
+-- Room the map takes from bottom-anchored text (Layout.Positions' reserve), or nil. A strip
+-- inside the bar takes none: bottom text already sits above the bar. The overlay's room runs to
+-- the top of its dark backing plus MAP_TEXT_GAP, so text above it (the character name, say) never
+-- reads as part of the map. The backing's fade ends inside its edge, so the real gap is larger.
+function Layout.MapReserve(style, screenW, screenH, barsOn)
+  if style == "strip" and not barsOn then
+    local h = Layout.MAP_STRIP_H
+    return { BL = h, BC = h, BR = h }
+  elseif style == "overlay" then
+    local top = Layout.MapBox(screenW, screenH, barsOn).top - Layout.MAP_BACKING - Layout.MAP_TEXT_GAP
+    return { BR = screenH - top - Layout.PAD.bar } -- Positions adds PAD.bar back
+  end
+  return nil
 end
 
 -- Letterbox bar height: 11% of the screen, as in the design (79px at 720p).
