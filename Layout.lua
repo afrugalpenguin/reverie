@@ -89,6 +89,8 @@ Layout.MAP_DETAIL_NAMES = { eta = "Time to arrival", nextStop = "Next stop" }
 
 Layout.MAP_STRIP_H = 64                 -- the strip's height without bars, in UI units
 Layout.MAP_BOX_W, Layout.MAP_BOX_H = 380, 250 -- the overlay style's area, bottom right
+Layout.MAP_BACKING = 60                 -- the overlay's dark backing reaches this far past the box
+Layout.MAP_TEXT_GAP = 24                -- at least this between the backing and text above it
 Layout.MAP_STRENGTH_MIN = 20            -- terrain strength range, in percent
 Layout.FLIGHT_MIN, Layout.FLIGHT_MAX = 10, 1800 -- seconds; flight times outside this are discarded
 Layout.LEARN_CAP = 10                   -- flights averaged per route before older ones start to fade
@@ -809,13 +811,16 @@ function Layout.MapBox(screenW, screenH, barsOn)
 end
 
 -- Room the map takes from bottom-anchored text (Layout.Positions' reserve), or nil. A strip
--- inside the bar takes none: bottom text already sits above the bar.
+-- inside the bar takes none: bottom text already sits above the bar. The overlay's room runs to
+-- the top of its dark backing plus MAP_TEXT_GAP, so text above it (the character name, say) never
+-- reads as part of the map. The backing's fade ends inside its edge, so the real gap is larger.
 function Layout.MapReserve(style, screenW, screenH, barsOn)
   if style == "strip" and not barsOn then
     local h = Layout.MAP_STRIP_H
     return { BL = h, BC = h, BR = h }
   elseif style == "overlay" then
-    return { BR = screenH - Layout.MapBox(screenW, screenH, barsOn).top }
+    local top = Layout.MapBox(screenW, screenH, barsOn).top - Layout.MAP_BACKING - Layout.MAP_TEXT_GAP
+    return { BR = screenH - top - Layout.PAD.bar } -- Positions adds PAD.bar back
   end
   return nil
 end

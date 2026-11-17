@@ -3,9 +3,11 @@
 -- (Map.lua), and scaled down in the options preview (MapOptions.lua). Placement comes from
 -- Layout.MapStrip / Layout.MapBox, so Layout.MapReserve keeps bottom text clear of it.
 --
--- Built only from what the spike (#54) proved on Forever: CreateLine for routes, the taxi map's
--- own art (GetMapArtLayers / GetMapArtLayerTextures), desaturate + vertex colour + alpha, and our
--- own soft-edged mask texture (the game's masks are all hard cut-outs).
+-- Built on what the spike (#54) proved on Forever: CreateLine for routes, the taxi map's own art
+-- (GetMapArtLayers / GetMapArtLayerTextures), desaturate + vertex colour + alpha, and our own
+-- soft-edged mask textures (the game's masks are all hard cut-outs). The Overlay style's textures
+-- (textures/Map*.tga) come from tools/make_textures.py. Not proven in the spike, so on the PR's
+-- checklist: textured Lines with ADD blend (the route glow) and SetRotation (the marker).
 local addonName, ns = ...
 local Layout, Route = ns.Layout, ns.Route
 
@@ -15,19 +17,36 @@ ns.MapView = MapView
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local CIRCLE = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local SOFT_MASK = "Interface\\AddOns\\" .. addonName .. "\\textures\\MapMask"
+local TEX = "Interface\\AddOns\\" .. addonName .. "\\textures\\"
+local TERRAIN_MASK = TEX .. "MapTerrainMask" -- a smaller solid centre and a steeper fade than MapMask
+local BACKING_MASK = TEX .. "MapBacking"     -- soft rounded falloff, nothing well inside its edges
+local GLOW_LINE = TEX .. "MapGlowLine"       -- white along the middle, clear across the width
+local GLOW = TEX .. "MapGlow"                -- round soft glow
+local ARROW = TEX .. "MapArrow"              -- filled arrow pointing right, with a dark edge
 local FONTS = { title = "Fonts\\MORPHEUS.TTF", body = "Fonts\\FRIZQT__.TTF" }
 
 local GOLD = { 0.88, 0.72, 0.38 }
 local CREAM = { 1.00, 0.96, 0.86 }
 local DIM = { 0.80, 0.76, 0.70 }
-local TEAL = { 0.35, 0.85, 0.85 } -- terrain tint, as tried in the spike
-local TERRAIN_MAX = 0.85          -- terrain alpha at strength 100
+-- Overlay style.
+local ROUTE_GOLD = { 0.96, 0.78, 0.41 }
+local INK = { 0.06, 0.05, 0.07 }       -- the dark centre of each stop's ring
+local CHARCOAL = { 0.30, 0.29, 0.33 }  -- terrain: darkened relief, not a tint
+local TERRAIN_MAX = 0.85               -- terrain alpha at strength 100
+local BACKING_ALPHA = 0.55             -- the dark backing, in the middle
 local STRIP_FADE = 0.75           -- the dark gradient under a strip without bars
 local LINE_GAP = 16               -- strip: between a name and the line
 local BOX_PAD = 26                -- overlay: between the route and the box's edges
 local BOX_TEXT_H = 66             -- overlay: room at the top for the destination block
-local DOT, GAP = 4, 5             -- overlay: the remaining route's dots and the gaps between
+local ROUTE_W = 4                 -- overlay: travelled route
+local GLOW_W, GLOW_ALPHA = 12, 0.35 -- overlay: the glow line under it
+local DASH, GAP = 10, 8           -- overlay: the remaining route's dashes and the gaps between
+local REMAIN_W, REMAIN_ALPHA = 3, 0.85
+local RING, RING_INNER = 12, 6    -- overlay: a stop's gold ring and its dark centre
+local DEST_RING, DEST_INNER = 18, 11
+local DEST_GLOW, MARKER_GLOW, SOFT_GLOW_ALPHA = 46, 44, 0.35
+local MARKER = 22
+local LABEL_SIZE = 15             -- overlay: stop names
 
 -- Pools of textures, lines and font strings, reused every redraw.
 local function Pool(make) return { items = {}, used = 0, make = make } end
@@ -50,9 +69,9 @@ local function Finish(pool)
   for i = pool.used + 1, #pool.items do pool.items[i]:Hide() end
 end
 
-local function Label(parent, font, size, color)
+local function Label(parent, font, size, color, flags)
   local fs = parent:CreateFontString(nil, "OVERLAY")
-  fs:SetFont(FONTS[font], size, "")
+  fs:SetFont(FONTS[font], size, flags or "")
   fs:SetTextColor(color[1], color[2], color[3], 1)
   fs:SetShadowColor(0, 0, 0, 1)
   fs:SetShadowOffset(1, -1)
@@ -60,8 +79,8 @@ local function Label(parent, font, size, color)
   return fs
 end
 
-local function Dot(parent)
-  local t = parent:CreateTexture(nil, "OVERLAY")
+local function Dot(parent, sublevel)
+  local t = parent:CreateTexture(nil, "OVERLAY", nil, sublevel)
   t:SetTexture(WHITE)
   local mask = parent:CreateMaskTexture()
   mask:SetTexture(CIRCLE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
@@ -87,7 +106,23 @@ local function PutLine(pool, parent, ax, ay, bx, by, thickness, color, alpha)
   l:SetColorTexture(color[1], color[2], color[3], alpha or 1)
 end
 
--- The flight marker: a chevron at x, y pointing along the unit heading dx, dy.
+-- A soft glow under a line: the glow texture, tinted, added to what's behind it.
+local function PutGlowLine(pool, parent, ax, ay, bx, by)
+  local l = Take(pool)
+  l:SetStartPoint("TOPLEFT", parent, ax, -ay)
+  l:SetEndPoint("TOPLEFT", parent, bx, -by)
+  l:SetThickness(GLOW_W)
+  l:SetVertexColor(ROUTE_GOLD[1], ROUTE_GOLD[2], ROUTE_GOLD[3], GLOW_ALPHA)
+end
+
+-- A round soft glow centred on x, y.
+local function PutGlow(pool, parent, x, y, size)
+  local g = Take(pool)
+  g:SetSize(size, size)
+  g:SetPoint("CENTER", parent, "TOPLEFT", x, -y)
+end
+
+-- The strip's flight marker: a chevron at x, y pointing along the unit heading dx, dy.
 local function PutArrow(pool, parent, x, y, dx, dy, size)
   local tipX, tipY = x + dx * size * 0.5, y + dy * size * 0.5
   for _, a in ipairs({ 2.6, -2.6 }) do -- radians either side of straight back
@@ -121,37 +156,68 @@ function MapView.New(root)
   self.stripLabels = Pool(function() return Label(strip, "body", 10, DIM) end)
   self.stripLines = Pool(function() return strip:CreateLine(nil, "OVERLAY") end)
 
-  -- Overlay: terrain under the route, both clipped to the box.
+  -- Overlay, back to front: a dark backing reaching past the box, the terrain (clipped to the
+  -- box), then the route, stops, marker and labels.
   self.box = CreateFrame("Frame", nil, f)
   local box = self.box
+  local reach = Layout.MAP_BACKING
+  self.backing = box:CreateTexture(nil, "BACKGROUND")
+  self.backing:SetTexture(WHITE)
+  self.backing:SetVertexColor(0, 0, 0, BACKING_ALPHA)
+  self.backing:SetPoint("TOPLEFT", box, "TOPLEFT", -reach, reach)
+  self.backing:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", reach, -reach)
+  local backingMask = box:CreateMaskTexture()
+  backingMask:SetTexture(BACKING_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+  backingMask:SetAllPoints(self.backing)
+  self.backing:AddMaskTexture(backingMask)
+
   self.terrain = CreateFrame("Frame", nil, box)
   self.terrain:SetAllPoints()
   self.terrain:SetClipsChildren(true)
-  self.softMask = self.terrain:CreateMaskTexture()
-  self.softMask:SetTexture(SOFT_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-  self.softMask:SetAllPoints(box)
+  self.terrainMask = self.terrain:CreateMaskTexture()
+  self.terrainMask:SetTexture(TERRAIN_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+  self.terrainMask:SetAllPoints(box)
   self.tiles = Pool(function()
     local t = self.terrain:CreateTexture(nil, "ARTWORK")
-    t:AddMaskTexture(self.softMask)
+    t:AddMaskTexture(self.terrainMask)
     return t
   end)
+
   self.route = CreateFrame("Frame", nil, box)
   self.route:SetAllPoints()
   local route = self.route
-  self.boxLines = Pool(function() return route:CreateLine(nil, "ARTWORK") end)
-  self.boxDots = Pool(function() return Dot(route) end)
-  self.boxLabels = Pool(function() return Label(route, "body", 11, CREAM) end)
-  -- Top right: "Flying to" small, the destination large, then the details.
+  self.glowLines = Pool(function()
+    local l = route:CreateLine(nil, "ARTWORK", nil, 0)
+    l:SetTexture(GLOW_LINE)
+    l:SetBlendMode("ADD")
+    return l
+  end)
+  self.boxLines = Pool(function() return route:CreateLine(nil, "ARTWORK", nil, 2) end)
+  self.glows = Pool(function()
+    local t = route:CreateTexture(nil, "OVERLAY", nil, 0)
+    t:SetTexture(GLOW)
+    t:SetBlendMode("ADD")
+    t:SetVertexColor(ROUTE_GOLD[1], ROUTE_GOLD[2], ROUTE_GOLD[3], SOFT_GLOW_ALPHA)
+    return t
+  end)
+  self.rings = Pool(function() return Dot(route, 1) end)
+  self.ringCentres = Pool(function() return Dot(route, 2) end)
+  self.marker = route:CreateTexture(nil, "OVERLAY", nil, 3)
+  self.marker:SetTexture(ARROW)
+  self.marker:SetSize(MARKER, MARKER)
+  self.marker:SetVertexColor(ROUTE_GOLD[1], ROUTE_GOLD[2], ROUTE_GOLD[3], 1)
+  self.boxLabels = Pool(function() return Label(route, "body", LABEL_SIZE, CREAM, "OUTLINE") end)
+  -- Top right, the map's own label: "Flying to" small, the destination in gold, then the details.
+  -- Smaller and a different colour from the title card's name, so the two never read as one.
   self.flyingTo = Label(route, "body", 11, DIM)
   self.flyingTo:SetJustifyH("RIGHT")
   self.flyingTo:SetPoint("TOPRIGHT")
   self.flyingTo:SetText("Flying to")
-  self.title = Label(route, "title", 20, CREAM)
+  self.title = Label(route, "title", 20, ROUTE_GOLD)
   self.title:SetJustifyH("RIGHT")
   self.title:SetPoint("TOPRIGHT", self.flyingTo, "BOTTOMRIGHT", 0, -2)
   self.info = Label(route, "body", 12, CREAM)
   self.info:SetJustifyH("RIGHT")
-  self.info:SetWordWrap(true)
   self.info:SetPoint("TOPRIGHT", self.title, "BOTTOMRIGHT", 0, -3)
 
   f:Hide()
@@ -262,7 +328,7 @@ local function DrawBox(self, d, w, h)
       local t = Take(self.tiles)
       t:SetTexture(file)
       t:SetDesaturated(true)
-      t:SetVertexColor(TEAL[1], TEAL[2], TEAL[3], 1)
+      t:SetVertexColor(CHARCOAL[1], CHARCOAL[2], CHARCOAL[3], 1)
       t:SetSize(art.tileW * k, art.tileH * k)
       t:SetPoint("TOPLEFT", self.terrain, "TOPLEFT", fit.ox + col * art.tileW * k, -(fit.oy + row * art.tileH * k))
     end
@@ -270,15 +336,21 @@ local function DrawBox(self, d, w, h)
   end
   Finish(self.tiles)
 
-  -- Travelled: solid gold. Still to fly: dotted.
+  -- Travelled: solid gold over a soft glow. Still to fly: cream dashes.
   Begin(self.boxLines)
-  local function Dotted(ax, ay, bx, by)
+  Begin(self.glowLines)
+  local function Solid(ax, ay, bx, by)
+    PutGlowLine(self.glowLines, routeFrame, ax, ay, bx, by)
+    PutLine(self.boxLines, routeFrame, ax, ay, bx, by, ROUTE_W, ROUTE_GOLD)
+  end
+  local function Dashed(ax, ay, bx, by)
     local len = math.sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
     if len <= 0 then return end
     local ux, uy = (bx - ax) / len, (by - ay) / len
-    for s = 0, len, DOT + GAP do
-      local e = math.min(s + DOT, len)
-      PutLine(self.boxLines, routeFrame, ax + ux * s, ay + uy * s, ax + ux * e, ay + uy * e, 2, CREAM, 0.8)
+    for s = 0, len, DASH + GAP do
+      local e = math.min(s + DASH, len)
+      PutLine(self.boxLines, routeFrame, ax + ux * s, ay + uy * s, ax + ux * e, ay + uy * e,
+        REMAIN_W, CREAM, REMAIN_ALPHA)
     end
   end
   local stops = route.stops
@@ -289,46 +361,58 @@ local function DrawBox(self, d, w, h)
     local ax, ay = P(a.x, a.y)
     local bx, by = P(b.x, b.y)
     if b.at <= d.progress then
-      PutLine(self.boxLines, routeFrame, ax, ay, bx, by, 2.5, GOLD)
+      Solid(ax, ay, bx, by)
     elseif a.at >= d.progress then
-      Dotted(ax, ay, bx, by)
+      Dashed(ax, ay, bx, by)
     else
-      PutLine(self.boxLines, routeFrame, ax, ay, mx, my, 2.5, GOLD)
-      Dotted(mx, my, bx, by)
+      Solid(ax, ay, mx, my)
+      Dashed(mx, my, bx, by)
     end
   end
-  -- The heading in box units: x is stretched by the map's aspect.
-  local dx, dy = hx * aspect, hy
-  local hl = math.sqrt(dx * dx + dy * dy)
-  if hl > 0 then dx, dy = dx / hl, dy / hl end
-  PutArrow(self.boxLines, routeFrame, mx, my, dx, dy, 11)
   Finish(self.boxLines)
+  Finish(self.glowLines)
 
-  Begin(self.boxDots)
+  -- Stops: a gold ring with a dark centre; the destination larger, with a glow behind it.
+  Begin(self.glows)
+  Begin(self.rings)
+  Begin(self.ringCentres)
   Begin(self.boxLabels)
   for i, s in ipairs(stops) do
     local x, y = P(s.x, s.y)
-    local ends = i == 1 or i == #stops
-    PutDot(self.boxDots, routeFrame, x, y, ends and 8 or 6, s.at <= d.progress and GOLD or CREAM)
+    local dest = i == #stops
+    if dest then PutGlow(self.glows, routeFrame, x, y, DEST_GLOW) end
+    local outer = dest and DEST_RING or RING
+    PutDot(self.rings, routeFrame, x, y, outer, ROUTE_GOLD)
+    PutDot(self.ringCentres, routeFrame, x, y, dest and DEST_INNER or RING_INNER, INK)
     if s.name then
       local label = Take(self.boxLabels)
       label:SetText(Route.ShortName(s.name))
+      local gap = outer / 2 + 6
       if x > r.width * 0.62 then
-        label:SetPoint("RIGHT", routeFrame, "TOPLEFT", x - 8, -y)
+        label:SetPoint("RIGHT", routeFrame, "TOPLEFT", x - gap, -y)
       else
-        label:SetPoint("LEFT", routeFrame, "TOPLEFT", x + 8, -y)
+        label:SetPoint("LEFT", routeFrame, "TOPLEFT", x + gap, -y)
       end
     end
   end
-  Finish(self.boxDots)
+
+  -- The marker: the arrow turned to the heading, with a glow behind it. The heading is in box
+  -- units (x stretched by the map's aspect); SetRotation turns anticlockwise with y up.
+  PutGlow(self.glows, routeFrame, mx, my, MARKER_GLOW)
+  self.marker:ClearAllPoints()
+  self.marker:SetPoint("CENTER", routeFrame, "TOPLEFT", mx, -my)
+  self.marker:SetRotation(math.atan2(-hy, hx * aspect))
+  Finish(self.glows)
+  Finish(self.rings)
+  Finish(self.ringCentres)
   Finish(self.boxLabels)
 
   self.title:SetText(Route.ShortName(stops[#stops].name))
-  local lines = {}
-  if d.eta then lines[#lines + 1] = Route.FormatTime(d.eta) .. " to arrival" end
-  if d.nextStop then lines[#lines + 1] = "Next stop: " .. Route.ShortName(d.nextStop.name) end
-  self.info:SetText(table.concat(lines, "\n"))
-  self.info:SetShown(#lines > 0)
+  local parts = {}
+  if d.eta then parts[#parts + 1] = Route.FormatTime(d.eta) .. " to arrival" end
+  if d.nextStop then parts[#parts + 1] = "next stop " .. Route.ShortName(d.nextStop.name) end
+  self.info:SetText(table.concat(parts, "  ·  "))
+  self.info:SetShown(#parts > 0)
 end
 
 -- d: { style = "strip" | "overlay" | "off", bars, route, progress, eta, nextStop, art, strength }.

@@ -11,5 +11,6 @@ ignore:
   - .pkgmeta
   - .github
   - tests
+  - tools
   - media
   - .luacheckrc
