@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Reverie Map Test
+## Notes: Throwaway spike harness for a Reverie in-flight map. Not part of Reverie. Type /rmt.
+## Version: spike
+## SavedVariables: ReverieMapTestLog
+
+ReverieMapTest.lua
