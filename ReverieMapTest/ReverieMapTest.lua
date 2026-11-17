@@ -185,7 +185,7 @@ local function compareSpaces(label, ax, ay, bx, by)
   local d = dist(ax, ay, bx, by)
   if not d then
     fail("coords " .. label .. ": cannot compare " .. fmtXY(ax, ay) .. " with " .. fmtXY(bx, by))
-  elseif d < 0.01 then
+  elseif d < 0.002 then  -- the first run showed 0.0003 on the right map and 0.0096 on the wrong one
     pass("coords " .. label .. ": " .. fmtXY(ax, ay) .. " vs " .. fmtXY(bx, by)
       .. ", distance " .. v(d) .. " - same coordinate space")
   else
@@ -290,12 +290,20 @@ local taxiEvents = CreateFrame("Frame")
 
 local function stopWatch() watcher:SetScript("OnUpdate", nil) end
 
+local lastTaxiMapID   -- the flight master's map from the last TAXIMAP_OPENED; survives disarm for /rmt art taxi
+
 -- One sample of everything the in-flight map would read. Never prints; returns a record.
-local function readSample()
+-- taxiMapID (optional) is the flight master's map, whose space the taxi node positions use.
+local function readSample(taxiMapID)
   local s = {}
   s.mapID, s.mapErr = bestMap()
   s.x, s.y = playerPos(s.mapID)
   if s.x == nil then s.posErr = s.y; s.y = nil end
+  s.taxiMapID = taxiMapID
+  if taxiMapID then
+    s.tx, s.ty = playerPos(taxiMapID)
+    if s.tx == nil then s.taxiErr = s.ty; s.ty = nil end
+  end
   s.contID, s.chain = continentOf(s.mapID)
   s.cx, s.cy = playerPos(s.contID)
   if s.cx == nil then s.contErr = s.cy; s.cy = nil end
@@ -314,11 +322,15 @@ local function sampleLine(n, since, s)
     .. (s.mapErr and (" [" .. s.mapErr .. "]") or "")
     .. " pos " .. (s.posErr and ("[" .. s.posErr .. "]") or fmtXY(s.x, s.y))
     .. " | continent " .. v(s.contID) .. " pos " .. (s.contErr and ("[" .. s.contErr .. "]") or fmtXY(s.cx, s.cy))
-    .. " | zone " .. v(s.zone) .. " / " .. v(s.sub)
+  if s.taxiMapID then
+    line = line .. " | taxi map " .. v(s.taxiMapID) .. " pos "
+      .. (s.taxiErr and ("[" .. s.taxiErr .. "]") or fmtXY(s.tx, s.ty))
+  end
+  line = line .. " | zone " .. v(s.zone) .. " / " .. v(s.sub)
     .. " | facing " .. (s.facingErr and ("[" .. s.facingErr .. "]") or v(s.facing))
-  if flight and flight.destX then
-    local d = dist(s.cx, s.cy, flight.destX, flight.destY)
-    line = line .. " | to dest node " .. (d and v(d) or "n/a")
+  if flight and flight.destX and s.taxiMapID then
+    local d = dist(s.tx, s.ty, flight.destX, flight.destY)
+    line = line .. " | to dest node (taxi map) " .. (d and v(d) or "n/a")
   end
   return line
 end
@@ -327,10 +339,11 @@ local function sample()
   local f = flight
   f.samples = f.samples + 1
   local n = f.samples
-  local s = readSample()
+  local s = readSample(f.taxiMapID)
   if s.mapErr then f.stats.map = f.stats.map + 1 end
   if s.posErr then f.stats.pos = f.stats.pos + 1 end
   if s.contErr then f.stats.cont = f.stats.cont + 1 end
+  if s.taxiErr then f.stats.taxi = f.stats.taxi + 1 end
   if s.facingErr then f.stats.facing = f.stats.facing + 1 end
   if s.mapID ~= f.lastMap then
     f.lastMap = s.mapID
@@ -348,11 +361,13 @@ local function landed()
     .. " s from choosing at " .. f.clock .. ", " .. string.format("%.1f", now - f.tBoarded) .. " s on the taxi")
   local st = f.stats
   info("flight summary: " .. f.samples .. " samples; best map failed " .. st.map .. ", map position failed "
-    .. st.pos .. ", continent position failed " .. st.cont .. ", facing failed " .. st.facing
-    .. "; maps seen: " .. table.concat(f.maps, ", "))
+    .. st.pos .. ", continent position failed " .. st.cont .. ", taxi map position failed " .. st.taxi
+    .. ", facing failed " .. st.facing .. "; maps seen: " .. table.concat(f.maps, ", "))
   -- Second coordinate check: the player at the destination against the destination node.
   if f.destX then
-    local s = readSample()
+    local s = readSample(f.taxiMapID)
+    compareSpaces("landing: dest TaxiNodePosition vs player on taxi map " .. v(s.taxiMapID),
+      f.destX, f.destY, s.tx, s.ty)
     compareSpaces("landing: dest TaxiNodePosition vs player on continent " .. v(s.contID),
       f.destX, f.destY, s.cx, s.cy)
   end
@@ -399,7 +414,7 @@ local function onTakeTaxiNode(slot)
   local okC, clock = pcall(date, "%H:%M:%S")
   flight = {
     slot = slot, tChosen = GetTime(), clock = okC and clock or "?", samples = 0, maps = {},
-    stats = { map = 0, pos = 0, cont = 0, facing = 0 },
+    stats = { map = 0, pos = 0, cont = 0, taxi = 0, facing = 0 },
   }
   pass("TakeTaxiNode(" .. v(slot) .. ") seen by hook at " .. flight.clock .. " (GetTime " .. v(flight.tChosen) .. ")")
 
@@ -435,6 +450,7 @@ local function onTakeTaxiNode(slot)
 
   local mapID, source = taxiMap()
   info("flight master map: " .. v(mapID) .. " (from " .. source .. ")")
+  flight.taxiMapID = mapID
   local focus = { slot = slot, name = name, what = "destination" }
   logNodeApi("GetAllTaxiNodes", mapID, focus, false)
   logNodeApi("GetTaxiNodesForMap", mapID, focus, false)
@@ -450,6 +466,7 @@ local function onTaxiMapOpened()
   local okN, count = try("NumTaxiNodes()", NumTaxiNodes)
   local current
   lastOpen = { mapID = mapID, slots = {} }
+  lastTaxiMapID = mapID
   if okN and type(count) == "number" and count > 0 then
     pass("NumTaxiNodes = " .. count)
     local others = 0
@@ -610,7 +627,9 @@ local function cleanArt()
   artFrame:Hide()
 end
 
-local function cmdArt()
+-- arg: "" for the player's continent, "taxi" for the last flight master's map, or a uiMapID.
+-- contID below is whichever map was chosen.
+local function cmdArt(arg)
   if not begin("art") then return end
   local function finish(problem)
     cancelTimers()
@@ -620,11 +639,35 @@ local function cmdArt()
     busy = nil
   end
 
-  local best, err = bestMap()
-  if not best then finish("C_Map.GetBestMapForUnit: " .. tostring(err)) return end
-  local contID, chain = continentOf(best)
-  info("art: map chain " .. tostring(chain))
-  if not contID then finish("no continent map") return end
+  local contID
+  if arg == "taxi" then
+    if not lastTaxiMapID then
+      finish("no flight master map seen yet: /rmt arm, open a flight master's map, then /rmt art taxi")
+      return
+    end
+    contID = lastTaxiMapID
+    info("art: using the flight master's map " .. v(contID))
+  elseif tonumber(arg) then
+    contID = tonumber(arg)
+    info("art: using map " .. v(contID) .. " from the command")
+  elseif arg ~= "" then
+    finish("unknown map '" .. arg .. "', use /rmt art, /rmt art taxi or /rmt art <mapID>")
+    return
+  else
+    local best, err = bestMap()
+    if not best then finish("C_Map.GetBestMapForUnit: " .. tostring(err)) return end
+    local chain
+    contID, chain = continentOf(best)
+    info("art: map chain " .. tostring(chain))
+    if not contID then finish("no continent map") return end
+  end
+  local okI, mapInfo = pcall(lookup("C_Map.GetMapInfo"), contID)
+  if okI and type(mapInfo) == "table" then
+    info("art: map " .. v(contID) .. " is " .. v(mapInfo.name) .. " [type " .. v(mapInfo.mapType)
+      .. ", parent " .. v(mapInfo.parentMapID) .. "]")
+  else
+    fail("art: GetMapInfo(" .. v(contID) .. ") returned " .. (okI and v(mapInfo) or tostring(mapInfo)))
+  end
 
   local okL, layers = try("C_Map.GetMapArtLayers(" .. v(contID) .. ")", lookup("C_Map.GetMapArtLayers"), contID)
   if not okL then finish("GetMapArtLayers failed") return end
@@ -676,7 +719,7 @@ local function cmdArt()
   end
   if setFailed > 0 then fail("SetTexture failed on " .. setFailed .. " tile(s)") end
   artFrame:Show()
-  info(string.format("art: continent %s drawn at scale %.3f (%.0fx%.0f) on WorldFrame", v(contID), scale,
+  info(string.format("art: map %s drawn at scale %.3f (%.0fx%.0f) on WorldFrame", v(contID), scale,
     lw * scale, lh * scale))
 
   local stages
@@ -870,7 +913,7 @@ local COMMANDS = { arm = cmdArm, art = cmdArt, line = cmdLine }
 
 SLASH_REVERIEMAPTEST1 = "/rmt"
 SlashCmdList.REVERIEMAPTEST = function(msg)
-  local sub = strtrim(msg or ""):lower()
+  local sub, arg = strtrim(msg or ""):lower():match("^(%S*)%s*(.-)$")
   if sub == "reset" then
     resetAll()
     info("reset: frames hidden, tiles reset, timers cancelled, taxi logging disarmed")
@@ -878,10 +921,10 @@ SlashCmdList.REVERIEMAPTEST = function(msg)
   end
   local fn = COMMANDS[sub]
   if not fn then
-    info("usage: /rmt arm | art | line | reset")
+    info("usage: /rmt arm | art [taxi | <mapID>] | line | reset")
     return
   end
-  local ok, err = pcall(fn)
+  local ok, err = pcall(fn, arg)
   if not ok then
     fail(sub .. " errored: " .. tostring(err))
     resetAll()
