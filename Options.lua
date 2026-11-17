@@ -1,5 +1,5 @@
--- Options window: a Text tab (show, anchor or free-position each text element) and a Photo tab
--- (PhotoOptions.lua), sharing one live preview.
+-- Options window: a Text tab (show, anchor or free-position each text element), a Photo tab
+-- (PhotoOptions.lua) and a Map tab (MapOptions.lua), sharing one live preview.
 local _, ns = ...
 local Layout = ns.Layout
 
@@ -29,7 +29,7 @@ local PREVIEW_W, PREVIEW_H = 600, 338
 local SCREEN_W, SCREEN_H = 1365, 768 -- a 16:9 screen in UI units, scaled into the preview
 local TAB_H = 40                     -- height of the tab bar above both pages
 
-local frame, renderer, textRoot, photoRoot
+local frame, renderer, textRoot, photoRoot, mapRoot
 local selected = "name"
 local activeTab = "text"
 local tabs, pages = {}, {}
@@ -151,10 +151,16 @@ function ns.RefreshOptions()
     page:SetShown(key == activeTab)
     SetActive(tabs[key], key == activeTab)
   end
-  textRoot:SetShown(activeTab == "text")
+  textRoot:SetShown(activeTab ~= "photo") -- the Map tab shows the overlay under its map
   photoRoot:SetShown(activeTab == "photo")
+  mapRoot:SetShown(activeTab == "map")
   if activeTab == "photo" then
     ns.RefreshPhotoPage()
+    return
+  end
+  if activeTab == "map" then
+    renderer:Apply(ns.settings, ns.Texts(true), nil, nil, ns.MapPreviewReserve(SCREEN_W, SCREEN_H))
+    ns.RefreshMapPage()
     return
   end
 
@@ -298,8 +304,8 @@ local function BuildLeft(parent)
   widgets.hint:SetText("Elements sharing a corner stack in list order.")
 end
 
--- Preview, shared by both tabs: a dusk sky with the overlay (Text tab) or the photo looks
--- (Photo tab) drawn at screen scale, shrunk to fit.
+-- Preview, shared by every tab: a dusk sky with the overlay (Text tab), the photo looks (Photo
+-- tab) or the overlay with a sample flight map (Map tab) drawn at screen scale, shrunk to fit.
 local function BuildPreview(parent)
   local preview = CreateFrame("Frame", nil, parent)
   preview:SetSize(PREVIEW_W, PREVIEW_H)
@@ -326,6 +332,8 @@ local function BuildPreview(parent)
   renderer = ns.Overlay.New(textRoot)
   photoRoot = ScreenRoot()
   photoRoot:Hide()
+  mapRoot = ScreenRoot()
+  mapRoot:Hide()
   return preview
 end
 
@@ -392,8 +400,9 @@ local function Build()
   table.insert(UISpecialFrames, "ReverieOptionsFrame")
 
   -- Tabs, each with a page below the tab bar.
-  for i, key in ipairs({ "text", "photo" }) do
-    local tab = Button(frame, 110, 28, key == "text" and "Text" or "Photo", 13)
+  local TAB_NAMES = { text = "Text", photo = "Photo", map = "Map" }
+  for i, key in ipairs({ "text", "photo", "map" }) do
+    local tab = Button(frame, 110, 28, TAB_NAMES[key], 13)
     tab:SetPoint("TOPLEFT", 20 + (i - 1) * 118, -14)
     tab:SetScript("OnClick", function()
       activeTab = key
@@ -412,6 +421,7 @@ local function Build()
   BuildLeft(pages.text)
   BuildRight(pages.text, preview)
   ns.BuildPhotoPage(pages.photo, photoRoot)
+  ns.BuildMapPage(pages.map, mapRoot)
 end
 
 function ns.ShowOptions()
