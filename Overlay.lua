@@ -147,7 +147,8 @@ end
 -- unlock: nil normally; in unlock mode { onDrop = function(id, x, y, w, h) } where x/y is the
 -- dropped element's centre in screen units from the top-left. Every element is then placed,
 -- outlined, labelled and draggable, even ones switched off in settings.
-function Overlay:Apply(settings, texts, selected, unlock)
+-- reserve: room the flight map takes at the bottom (Layout.MapReserve), or nil.
+function Overlay:Apply(settings, texts, selected, unlock, reserve)
   local root = self.root
   local w, h = root:GetWidth(), root:GetHeight()
   local barH = Layout.BarHeight(h, settings.options.bars)
@@ -174,7 +175,7 @@ function Overlay:Apply(settings, texts, selected, unlock)
     end
   end
 
-  local positions = Layout.Positions(settings, w, h, sizes, unlock ~= nil, self.order)
+  local positions = Layout.Positions(settings, w, h, sizes, unlock ~= nil, self.order, reserve)
 
   for _, id in ipairs(self.order) do
     local handle, p = self.handles[id], positions[id]

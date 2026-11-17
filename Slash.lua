@@ -1,4 +1,4 @@
--- /reverie: options, preview, stop, photo, tour, unlock/lock, and per-element text settings.
+-- /reverie: options, preview, stop, photo, map, tour, unlock/lock, and per-element text settings.
 local _, ns = ...
 local Layout = ns.Layout
 local state = ns.state
@@ -32,6 +32,7 @@ end
 -- Key bindings (Bindings.xml): Options > Keybindings > Reverie.
 BINDING_HEADER_REVERIE = "Reverie"
 BINDING_NAME_REVERIE_PHOTO = "Take photo"
+BINDING_NAME_REVERIE_MAP = "Flight map: Strip, Overlay, Off"
 
 SLASH_REVERIE1 = "/reverie"
 SLASH_REVERIE2 = "/rev" -- the short form; every subcommand works with it too
@@ -47,6 +48,8 @@ SlashCmdList.REVERIE = function(msg)
     ns.Stop()
   elseif sub == "photo" then
     ns.Photo.Take()
+  elseif sub == "map" then
+    ns.Map.Cycle()
   elseif sub == "unlock" then
     ns.Text.Unlock()
   elseif sub == "lock" then

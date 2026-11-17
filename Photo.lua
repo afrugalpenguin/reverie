@@ -241,6 +241,7 @@ local UNDO = {
     -- Only if the cinematic overlay is still up. The fade starts over, so the text stays a while.
     if not state.active then return end
     if r.hidChat then ns.Chat.ShowAfterPhoto() end
+    ns.Map.ShowAfterPhoto()
     if r.wokeText and ns.settings.options.fade then ns.Text.StartFade() end
   end,
   ui = function(r)
@@ -310,12 +311,13 @@ local STEPS = {
   end,
 
   -- A photo taken while the overlay is up keeps its bars and text, at full strength even if
-  -- the text had faded. Only the chat box is left out.
+  -- the text had faded. The chat box and the flight map are left out.
   shotOverlay = function(r)
     r.done.overlay = true
     local live = ns.Text.live
     if live and live.frame:IsShown() then
       r.hidChat = ns.Chat.HideForPhoto()
+      ns.Map.HideForPhoto()
       r.wokeText = true
       ns.Text.StopFade()
     end
