@@ -14,6 +14,15 @@ As soon as you land, move or press Escape, your interface comes straight back.
 
 The text can fade after 10 seconds without mouse movement; move the mouse and it comes back. The overlay never starts in combat, and it closes if combat begins.
 
+## Flight map
+
+On a flight path, the overlay also shows a map of your flight: where you started, any stops on the way, where you're going, and how far along you are. Reverie times each flight and learns how long every route takes, so from your second flight on a route it shows the time to arrival too.
+
+- **Strip** (the default) runs along the bottom letterbox bar, with the zone you're flying over in the top bar.
+- **Overlay** draws the route over the view in the bottom right, with the land underneath, faded at the edges.
+
+The "Flight map" key binding (Options › Keybindings › Reverie), or `/reverie map`, switches between Strip, Overlay and Off for the current flight only. The map never appears in photos or screenshots.
+
 ## Photo mode
 
 `/reverie photo`, or the "Take photo" key binding (Options › Keybindings › Reverie), takes a photo. You can also set the key with the button at the bottom of the Photo tab, or under Options › AddOns › Reverie, without opening the window: click it, press a key, or right-click to clear. Reverie hides the interface, shows framing guides during the self-timer countdown, then saves one screenshot for each shot type ticked on the Photo tab, about a second apart:
@@ -42,6 +51,7 @@ The zone you log in to doesn't count as a first visit, and zones are remembered 
 - `/reverie preview` shows the overlay now. Press Escape to leave it.
 - `/reverie stop` dismisses the overlay until the current trigger ends.
 - `/reverie photo` takes a photo.
+- `/reverie map` switches the flight map between Strip, Overlay and Off for the flight you're on.
 - `/reverie tour` shows the onboarding tour again.
 - `/reverie unlock` shows every text element with a dashed outline and its name, even ones you've switched off. Drag any of them with the mouse to place it freely. `/reverie lock` (or Escape) finishes. Unlocking isn't allowed in combat.
 - `/reverie text <element> on` or `off` shows or hides an element.
@@ -52,7 +62,7 @@ Elements are `name`, `guild`, `realm`, `level`, `zone`, `subzone` and `away`.
 
 ## Options
 
-The options window has a live preview and two tabs.
+The options window has a live preview and three tabs.
 
 **Text**
 
@@ -75,6 +85,13 @@ Elements pinned to the same position stack in a fixed order (name, guild, realm,
 - during the shot: hide nameplates, hide player names, hide addon extras
 - file: JPG or PNG, and quality
 - take automatically: level up, first visit to a zone, achievement, boss defeated
+
+**Map**
+
+- flight map style: Strip, Overlay or Off, and whether it shows automatically on flight paths
+- details: time to arrival, next stop, the zone you're flying over
+- Overlay style: show the land under the route, and how strongly
+- forget learned flight times
 
 ## Install
 
