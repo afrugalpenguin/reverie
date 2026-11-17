@@ -585,8 +585,11 @@ local STAGE_SECONDS = 10  -- each look (plain, teal, 50% alpha)
 local MASK_SECONDS = 5    -- each mask
 local TEAL = { 0.35, 0.85, 0.85 }
 
--- Candidate soft-edged masks. Guesses: the test reports which exist on this client.
+-- Candidate masks. Run 2 showed every Blizzard one below is a hard cut-out, so the first is our
+-- own: white with alpha fading to 0 over the outer 40 of 256 px. GetFileIDFromPath may not know
+-- addon files, so "exists NO" for it means nothing; judge it by eye.
 local MASK_PATHS = {
+  "Interface\\AddOns\\ReverieMapTest\\SoftEdgeMask",
   "Interface\\CharacterFrame\\TempPortraitAlphaMask",
   "Interface\\Masks\\CircleMaskScalable",
   "Interface\\Masks\\SquareMask",
